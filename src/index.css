@@ -1,0 +1,57 @@
+
+#root, .ant-layout {
+  height: 100%;
+}
+
+
+.trigger {
+  font-size: 18px;
+  line-height: 64px;
+  padding: 0 24px;
+  cursor: pointer;
+  transition: color 0.3s;
+}
+
+.trigger:hover {
+  color: #1890ff;
+}
+
+.logo {
+  height: 32px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 16px;
+}
+
+
+@font-face {
+  font-family: 'iconfont';
+  src: url('./assets/font/iconfont.eot');
+  src: url('./assets/font/iconfont.eot?#iefix') format('embedded-opentype'),
+      url('./assets/font/iconfont.woff2') format('woff2'),
+      url('./assets/font/iconfont.woff') format('woff'),
+      url('./assets/font/iconfont.ttf') format('truetype'),
+      url('./assets/font/iconfont.svg#iconfont') format('svg');
+}
+.iconfont {
+  font-family: "iconfont" !important;
+  font-size: 16px;
+  font-style: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 左侧菜单样式 */
+.sider-box .ant-menu-dark .ant-menu-inline.ant-menu-sub{
+  background:#192433;
+}
+.sider-box .ant-menu-inline .ant-menu-submenu-title{ 
+  font-size: 16px;color:#fff; border-bottom: 1px solid #3c4d67;height:50px !important;line-height: 50px !important;
+}
+.sider-box .ant-menu-dark .ant-menu-item {
+  color: rgba(255, 255, 255, 1);
+}
+.sider-box .ant-menu-inline .ant-menu-item,
+.sider-box .ant-menu-inline .ant-menu-submenu-title {
+  margin-top:0 !important;margin-bottom:0 !important;
+  height:46px !important;line-height: 46px !important;
+}
