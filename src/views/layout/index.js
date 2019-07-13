@@ -2,17 +2,19 @@ import React, { Component } from 'react';
 import { withRouter } from 'react-router-dom';
 import { Layout, Menu, Icon, Avatar } from 'antd';
 import styled from "styled-components";
-import { Durian, menuItems } from '../../utils'
+import { Durian, menuItemsSuperAdmin,menuItemsNormal } from '../../utils'
 const { Sider, Content } = Layout;
 const { SubMenu } = Menu;
 
 class MyLayout extends Component {
   loginUser = Durian.get('user');
+
   state = {
     collapsed: false,
     selectedTabKey: '/admin/ammeterInfo', // 选中的tab key
     selectedTabTitle: '电表信息维护', // 选中的tab title
     openKeys: ['baseDataManage'],
+    menuItems: []
   };
 
   toggle = () => {
@@ -35,7 +37,7 @@ class MyLayout extends Component {
   };
   getRootKeyFromChildKey = (ChildKey) => {
     const initOpenKeys = []
-    menuItems.forEach(item => {
+    this.state.menuItems.forEach(item => {
       const subMenuArr = item.subMenu
       subMenuArr.forEach(menu => {
         if (menu.key === ChildKey) {
@@ -52,7 +54,34 @@ class MyLayout extends Component {
     Durian.remove('selectedTabKey');
     this.props.history.push('/login');
   }
+  // 渲染icon
+  renderIcon = (item) => {
+    if (item.key==='baseDataManage') {
+      return <span className="iconfont menu-icon" style={{ color: '#fff' }}>&#xe60b;</span>
+    } else if (item.key==='businessManage') {
+       return <span className="iconfont menu-icon" style={{ color: '#fff' }}>&#xe62d;</span>
+    }
+  }
+  componentWillMount() {
+    console.log('layout:',Durian.get('user'))
+    if (!Durian.get('user')) {
+      this.props.history.push('/login')
+      return;
+    }
+    const roleMark = Durian.get('user').remark || '1';
+    let menus = []
+    if (roleMark === '1') {
+      menus = menuItemsSuperAdmin
+    } else {
+      menus = menuItemsNormal
+    }
+    this.setState({
+      menuItems: menus
+    })
+    // console.log('uu:',loginUser1)
+  }
   componentDidMount() {
+    
     // debugger;
     // 左侧tab选中
     let selectedKey = Durian.get('selectedTabKey')
@@ -70,8 +99,10 @@ class MyLayout extends Component {
   }
 
   render() {
-    const {selectedTabKey, collapsed, selectedTabTitle} = this.state
+    const {selectedTabKey, collapsed, selectedTabTitle, menuItems} = this.state
     // console.log('menuItems:',menuItems)
+    if (menuItems.length<=0) return null;
+    const selectedMenuTitle = menuItems.filter(item=>item.subMenu.findIndex(menu=>menu.title === selectedTabTitle)>-1)[0].title
     return (
       <Layout>
         <Sider trigger={null} collapsible collapsed={collapsed}
@@ -100,6 +131,10 @@ class MyLayout extends Component {
             onOpenChange={this.onOpenChange}
             onClick={( item, key, keyPath) => {
               // console.log('Menu.Item clicked', item)
+              if (!Durian.get('user')) {
+                this.props.history.push('/login')
+                return;
+              }
               const title = item.item.props.children;
               this.setState({
                 selectedTabKey: item.key,
@@ -117,8 +152,8 @@ class MyLayout extends Component {
                     key={item.key}
                     title={
                       <span>
-                        <Icon type={item.icon} />
-                        <span>{item.title}</span>
+                        { this.renderIcon(item) }
+                        <span style={{paddingLeft: '5px'}}>{item.title}</span>
                       </span>
                     }
                   >
@@ -139,18 +174,18 @@ class MyLayout extends Component {
         <Layout>
           <HeaderStyle>
             <HeaderContainer>
-              <Icon
+              {/* <Icon
                 className="trigger"
                 type={collapsed ? 'menu-unfold' : 'menu-fold'}
                 onClick={this.toggle}
-              />
-              <BreadCrumbs>{`基础数据管理-${selectedTabTitle}`}</BreadCrumbs>
+              /> */}
+              <BreadCrumbs>{`${selectedMenuTitle}-${selectedTabTitle}`}</BreadCrumbs>
             </HeaderContainer>
             <HeaderContainer>
               <div style={{fontSize: 14, fontWeight: "normal"}}>{this.loginUser?this.loginUser.loginAccount:''},欢迎您</div>
               <div style={{fontSize: 16,marginLeft: 20,cursor:'pointer'}} onClick={this.logoutFun}>
-                <span className="iconfont" style={{ color: '#333' }}>&#xe657;</span>
-                <span style={{paddingLeft: 5}}>退出</span>
+                <span className="iconfont" style={{ color: '#666',fontSize:20,verticalAlign:'-4px',display:'inline-block' }}>&#xe64f;</span>
+                <span style={{paddingLeft: 5,verticalAlign:'middle',display:'inline-block'}}>退出</span>
               </div>
             </HeaderContainer>
           </HeaderStyle>
@@ -192,6 +227,7 @@ const BreadCrumbs = styled.div`
   color: #292929;
   font-size: 22px;
   font-weight: bold;
+  padding-left: 20px;
 `
 const LogoContainer = styled.div`
   display: flex;

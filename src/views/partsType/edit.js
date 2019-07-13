@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
-import { Input, Select, Modal,Form, } from 'antd';
-
+import { Input, Select, Modal,Form,message } from 'antd';
+import { reqPartSave } from '../../api'
 const { Option } = Select;
 const formItemLayout = {
   labelCol: { span: 6 },
@@ -16,35 +16,44 @@ class EditModel extends Component {
   // 确定
   handleOk = e => {
     // console.log(e);
-    const { onModelCancel, saveData, editDataObj } = this.props
+    const { editDataObj } = this.props
     const { resetFields } = this.props.form
-    this.props.form.validateFieldsAndScroll((err, values) => {
+    this.props.form.validateFieldsAndScroll(async (err, values) => {
       if (!err) {
         //判断是更新 还是添加
         if(editDataObj.key) { // 编辑
           values.id = editDataObj.key;
         }
-        saveData(values) // 保存的数据
-   
-        resetFields() // 重置表单
-        onModelCancel() // 关闭弹窗
+        const res = await reqPartSave(values)
+        if (res && res.code === 200) {
+          if (this.props.onOkClickedListener) {
+            resetFields() // 重置表单
+            this.props.onOkClickedListener()
+            message.success(res.data);
+          }
+        } else {
+          message.warning(res.msg);
+        }
       }
     });
   };
 
   // 取消
   handleCancel = e => {
-    // console.log(e);
     this.setState({
       visible: false,
     });
+    if (this.props.onCancelClickedListener) {
+      this.props.onCancelClickedListener()
+    }
   };
+
   handleChangeValid = value => {
     console.log(`selected ${value}`);
   }
 
   render() {
-    const { editVisiable, onModelCancel, editDataObj } = this.props
+    const { editVisiable, editDataObj } = this.props
     const { getFieldDecorator } = this.props.form;
 
     return (
@@ -55,14 +64,15 @@ class EditModel extends Component {
           cancelText="取消"
           visible={editVisiable}
           onOk={this.handleOk}
-          onCancel={onModelCancel}
+          onCancel={this.handleCancel}
+          destroyOnClose={true}
         >
           <Form layout="horizontal">
             <Form.Item label="零件类型编号" {...formItemLayout}>
               {getFieldDecorator('partTypeCode', {
                 initialValue: editDataObj.partTypeCode || '',
                 rules: [{ required: true, message: '请输入编号!'}],
-              })(<Input />)}
+              })(<Input disabled={!!editDataObj.key}/>)}
             </Form.Item>
             <Form.Item label="零件类型名称" {...formItemLayout}>
               {getFieldDecorator('partTypeName', {

@@ -1,9 +1,11 @@
 import React, {Component} from 'react';
-import {Modal, Input, Table} from "antd";
+import {Modal, Input, Table, message} from "antd";
 import styled from "styled-components";
 import freshId from "fresh-id";
-import {electricityMeterColumns} from "../../../utils";
+import {electricityMeterColumns, http} from "../../../utils";
 import {TableButton} from "../../../components/TableButton";
+
+const _ = require('lodash')
 
 const EditableContext = React.createContext();
 
@@ -46,10 +48,16 @@ class _MeterRelationModal extends Component {
         visibility:false, //
 
         relatedData: null,  // 已关联电表数据
+        immutableDataSet: null,  // 已关联电表数据(用来保存不可变的数据以供筛选)
         unrelatedData: null, // 未关联电表数据
 
         relatedColumns: [], // 已关联电表列
         unrelatedColumns: [], // 未关联电表列
+
+        // 筛选条件对象
+        filterConditionObj: {
+            meterNumber: '',
+        },
     };
 
     componentWillMount() {
@@ -64,32 +72,21 @@ class _MeterRelationModal extends Component {
         })
     }
 
-    async componentDidMount() {
-        // const result = await http.post('/factory/factoryList', {})
-        // if (result.ret === '200') {
-        //   this.setState({
-        //     factoryList: result.data.content.map(item => ({
-        //       key: `factory_${item.code}`,
-        //       value: item.code,
-        //       label: item.name
-        //     }))
-        //   })
-        // } else {
-        //   message.error('获取工厂列表失败！请稍候重试。')
-        // }
-
-        // Todo: this is mocked data, FOR TEST ONLY
-        this.setState({
-            relatedData: this.constructMockData('related_data'),
-            unrelatedData: this.constructMockData('unrelated_data'),
-        })
-
-    }
-
-    componentWillReceiveProps(nextProps, nextContext) {
+    async componentWillReceiveProps(nextProps, nextContext) {
         if (nextProps.meterRelationModalVisible !== this.props.meterRelationModalVisible) {
             this.setState({
-                visibility: nextProps.meterRelationModalVisible
+                visibility: nextProps.meterRelationModalVisible,
+            })
+        }
+
+        // 如果是显示，则请求并构造数据
+        if (nextProps.meterRelationModalVisible) {
+            const {selectedDeviceObj} = nextProps
+            const unrelatedData = await this.constructData('unrelated_data', selectedDeviceObj)
+            this.setState({
+                relatedData: await this.constructData('related_data', selectedDeviceObj),
+                unrelatedData,
+                immutableDataSet: unrelatedData,
             })
         }
     }
@@ -127,10 +124,67 @@ class _MeterRelationModal extends Component {
         return dataSet
     }
 
+    // 构造数据
+    constructData = async (tableType, selectedDeviceObj) => {
+        // console.log('MRM selectedDeviceObj', selectedDeviceObj)
+        const machineNo = _.get(selectedDeviceObj, 'deviceNumber')
+        if (!machineNo) return
+        // console.log('constructData', machineNo)
+        let params = {
+            // pageNum: 0,
+            // pageSize: 0,
+        }
+        let dataSet = []
+        if (tableType === 'related_data') {
+            let originalContent = await this.callNetworkRequest({
+                requestUrl: '/machineInfo/findElectricityRelatedList',
+                params: Object.assign({}, params, {
+                    machineNo,
+                }),
+                requestMethod: 'POST'
+            })
+
+            if (originalContent.code === 200 && originalContent.data) {
+                dataSet = originalContent.data.map((content, index) => {
+                    return {
+                        index: index + 1,// 用于列表展示的序号
+                        key: freshId(),// 用于列表渲染的key
+                        dataId: content.id, // 用于 取消关联时使用
+                        meterNumber: content.electricityId// 电表编号
+                    }
+                })
+            }
+        } else {
+            let originalContent = await this.callNetworkRequest({
+                requestUrl: '/machineInfo/findNoElectricityRelatedList',
+                params: Object.assign({}, params, {
+                    pageNum: 0,
+                    pageSize: 0,
+                    query:{
+                        machineNo,
+                    }
+                }),
+                requestMethod: 'POST'
+            })
+
+            if (originalContent.code === 200 && originalContent.data) {
+                dataSet = originalContent.data.list.map((content, index) => {
+                    return {
+                        index: index + 1,// 用于列表展示的序号
+                        key: freshId(),// 用于列表渲染的key
+                        dataId: content.id, // 用于 取消关联时使用
+                        meterNumber: content.electricityId// 电表编号
+                    }
+                })
+            }
+        }
+        console.log('===dataSet===', dataSet)
+        return dataSet
+    }
+
     // 构建表头结构
     constructTableFields = (tableType) => {
         let baseColumnsArray = electricityMeterColumns
-        console.log('this.getOperationFields(tableType)', this.getOperationFields(tableType))
         return baseColumnsArray.concat(this.getOperationFields(tableType))
     }
 
@@ -174,26 +228,81 @@ class _MeterRelationModal extends Component {
     }
 
     // 切换关联状态
-    toggleRelationship = (record, type) => {
-        console.log('toggleRelationship called record, type =',record, type)
+    toggleRelationship = async (record, type) => {
+        const {selectedDeviceObj} = this.props
+        const machineNo = _.get(selectedDeviceObj, 'deviceNumber')
+        console.log('toggleRelationship called record, type =', record, type)
 
-        // if (type === 'related_data') {
-        //     this.setState({
-        //         addPartModalVisible: true,
-        //         selectedPart: record
-        //     })
-        // } else {
-        //     this.setState({
-        //         addStepModalVisible: true,
-        //         selectedProcedure: record
-        //     })
-        // }
+        let params = {
+            machineNo,
+            electricityId: record.meterNumber,
+            flag: type === 'unrelated_data' ? '1' : '0'
+        }
 
-        //Todo: 调用接口刷新列表数据
+        // 如果是 取消关联，需要传递id
+        if (type === 'related_data') {
+            params = Object.assign({}, params, {
+                id: record.dataId,
+            })
+        }
+        // 调用接口刷新列表数据
+        let originalContent = await this.callNetworkRequest({
+            requestUrl: '/machineInfo/setMachineElectricityRelated',
+            params,
+            requestMethod: 'POST'
+        })
+        console.log('toggleRelationship originalContent = ',originalContent)
+
+        if (originalContent.code === 200) {
+            message.success('操作成功！')
+            const unrelatedData = await this.constructData('unrelated_data', selectedDeviceObj)
+            this.setState({
+                relatedData: await this.constructData('related_data', selectedDeviceObj),
+                unrelatedData,
+                immutableDataSet: unrelatedData,
+            })
+        }
+    }
+
+    // 搜索回调
+    onSearchCalled = () => {
+        const {immutableDataSet, filterConditionObj} = this.state
+        const {meterNumber} = filterConditionObj
+        console.log('onClickCalled1', immutableDataSet, filterConditionObj)
+        let filteredData = []
+        if (meterNumber!=='') {
+            filteredData = immutableDataSet.filter(data=>{
+                return data.meterNumber.indexOf(meterNumber)>-1
+            })
+        } else {
+            filteredData = immutableDataSet
+        }
+        console.log('onClickCalled2',filteredData)
+        this.setState({
+            unrelatedData: filteredData
+        })
+    }
+
+    // 调用网络请求
+    callNetworkRequest = async ({requestUrl, params, requestMethod}) => {
+        let result
+        if (requestMethod === 'POST') {
+            result = await http.post(requestUrl, params)
+        } else {
+            result = await http.get(requestUrl)
+        }
+        console.log(`request: ${requestUrl}`, 'params:', params, 'result:', result)
+        return result
     }
 
     render() {
-        const {visibility, relatedData, unrelatedData, relatedColumns: originalRelatedColumns, unrelatedColumns: originalUnrelatedColumns} = this.state
+        const {
+            visibility,
+            relatedData,
+            unrelatedData,
+            relatedColumns: originalRelatedColumns,
+            unrelatedColumns: originalUnrelatedColumns
+        } = this.state
 
         const components = {
             body: {
@@ -246,14 +355,14 @@ class _MeterRelationModal extends Component {
                         <TableSearchView style={{width: '100%', justifyContent: 'flex-start'}}>
                             <SearchView
                                 key={'tab5_1'}
-                                placeHolder="请输入电表名称"
+                                placeHolder="请输入电表编号"
                                 onSearchCalled={(value = '') => {
                                     console.log('onSearchCalled called!', value)
                                     this.setState((prevState) => {
                                         return {
-                                            tab5_obj: Object.assign({}, prevState.tab5_obj, {material: value}, {materialDescription: value})
+                                            filterConditionObj: Object.assign({}, prevState.filterConditionObj, {meterNumber: value})
                                         }
-                                    })
+                                    }, ()=>this.onSearchCalled())
                                 }}
                             />
                         </TableSearchView>
@@ -265,26 +374,26 @@ class _MeterRelationModal extends Component {
                             // bodyStyle={{minHeight: 'calc(100vh - 280px)', maxHeight: 'calc(100vh - 280px)'}}
                             components={components}
                             bordered={false}
-                            dataSource={relatedData}
-                            columns={relatedColumns}
+                            dataSource={unrelatedData}
+                            columns={unrelatedColumns}
                             pagination={{
                                 pageSize:5,
                                 showQuickJumper: true,
                             }}
-                            loading={relatedData===null}
+                            loading={unrelatedData===null}
                         />
                         <div style={{height:'1px', backgroundColor:'#ddd', width:'99%', margin:'0 0.5%'}}/>
                         <Table
                             className="data-board-mini-table-70"
                             // bodyStyle={{minHeight: 'calc(100vh - 280px)', maxHeight: 'calc(100vh - 280px)'}}
-                            title={()=>'未关联电表'}
+                            title={()=>'已关联电表'}
                             components={components}
                             bordered={false}
-                            dataSource={unrelatedData}
-                            columns={unrelatedColumns}
+                            dataSource={relatedData}
+                            columns={relatedColumns}
                             pagination={false}
                             scroll={{y: 'calc((90vh)/10*3)'}}
-                            loading={unrelatedData===null}
+                            loading={relatedData===null}
                         />
                     </EditableContext.Provider>
                 </StyledContent>
@@ -306,10 +415,10 @@ class SearchView extends Component {
                 enterButton="查询"
                 size="default"
                 onSearch={onSearchCalled}
-                onChange={(e) => {
-                    const {value} = e.target
-                    onSearchCalled(value)
-                }}
+                // onChange={(e) => {
+                //     const {value} = e.target
+                //     onSearchCalled(value)
+                // }}
             />
         )
     }
@@ -336,9 +445,9 @@ const TableControllerView = styled.div`
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
-  width: 100%;
+  width: 60%;
   // border: red solid 2px;
-  padding: 0px 10px;
+  padding: 0px 10px 6px 10px;
 `
 
 const TableSearchView = styled.div`

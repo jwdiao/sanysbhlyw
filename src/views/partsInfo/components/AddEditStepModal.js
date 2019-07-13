@@ -46,30 +46,64 @@ class _AddStepModal extends Component {
         }
     }
 
-    // todo: 接口对接
+    // 提交数据
     handleSubmit = (e) => {
         e.preventDefault();
-        const {form} = this.props
-        form.validateFields(async (err, values) => {
+        const {form, selectedProcedureObj} = this.props
+        const procedureKey = _.get(selectedProcedureObj, 'procedureKey') // 用来判断是编辑还是新增
+        const id = _.get(selectedProcedureObj, 'id') // 修改时传递
+        const {
+            // 从零件中带出，不可编辑
+            machineName,
+            machineNumber,
+            partTypeCode,
+            partTypeName,
+            partCode,
+            partName,
+
+            // 可编辑的fields
+            // procedureMinimumDuration,
+            // procedureName,
+            // procedureNumber,
+            // procedureProduceDuration,
+            // stepName,
+            // isValid
+        } = selectedProcedureObj
+        console.log('selectedPartObj', selectedProcedureObj)
+        form.validateFieldsAndScroll(async (err, values) => {
             if (!err) {
+                console.log('handleSubmit values', values)
                 // 网络请求
                 let params = {}
-                let requestUrl = ''
+                let requestUrl = '/productProcesses/save'
 
                 this.setState({
                     visible: true,
                     confirmLoading: true,
                 });
 
-                requestUrl = '/material/save '
                 params = Object.assign({}, params, {
-                    // code: values.material.trim(),
-                    // name: values.materialDescription.trim(),
-                    // units: _unitList.filter(unit => unit.value === values.unit)[0].label,
-                    // materialCode: values.material.trim(), // 传参时只传递物料号，物料名称等其他参数只做界面展示之用，不传递
-                    // supplierCode: values.vendor.trim(),
-                    // factoryCode: values.factory.trim(),
+                    machineNo:machineNumber,
+                    machineName,
+                    partTypeCode,
+                    partTypeName,
+                    partCode,
+                    partName,
+
+                    procedureName: values.stepName,
+                    processName: values.procedureName,
+                    processNo: values.procedureNumber,
+                    nomalTime: values.procedureProduceDuration,
+                    shortTime: values.procedureMinimumDuration,
                 })
+
+                // 如果是修改，需要传递id
+                if (procedureKey) {
+                    params =  Object.assign({}, params, {
+                        id,
+                        isFlag: values.isValid, // 是否有效状态的修改
+                    })
+                }
 
                 const result = await this.callNetworkRequest({
                     requestUrl,
@@ -78,15 +112,7 @@ class _AddStepModal extends Component {
                 })
 
                 console.log('handleSubmit result',result)
-                if (result && result.ret === '200') {
-                    const addedData = {
-                        // key: freshId(),
-                        // // id: content.id,
-                        // sanyId: factoryCode,
-                        // sanyName: factoryName,
-                        // status: 1,
-                        // // createdAt: formatDate(content.createTime),
-                    }
+                if (result && result.code === 200) {
                     if (this.props.onOkClickedListener) {
                         this.props.onOkClickedListener()
                     }
@@ -118,8 +144,9 @@ class _AddStepModal extends Component {
 
     render() {
         const {form, selectedProcedureObj} = this.props
-        const stepKey = _.get(selectedProcedureObj, 'key')
+        const stepKey = _.get(selectedProcedureObj, 'procedureKey')
         const partName = _.get(selectedProcedureObj, 'partName', null) // 零件名称
+
         const stepName = _.get(selectedProcedureObj, 'stepName', null) // 程序名称
         const procedureNumber = _.get(selectedProcedureObj, 'procedureNumber', null) // 工序号
         const procedureName = _.get(selectedProcedureObj, 'procedureName', null) // 工序名称
@@ -131,7 +158,7 @@ class _AddStepModal extends Component {
             getFieldDecorator, getFieldError, isFieldTouched,
         } = form
 
-        const {visibility} = this.state
+        const {visibility, confirmLoading} = this.state
 
         const stepNameError = isFieldTouched('stepName') && getFieldError('stepName'); // 程序名称
         const procedureNumberError = isFieldTouched('procedureNumber') && getFieldError('procedureNumber'); // 工序号
@@ -140,13 +167,12 @@ class _AddStepModal extends Component {
         const procedureMinimumDurationError = isFieldTouched('procedureMinimumDuration') && getFieldError('procedureMinimumDuration'); // 工序最短时间
         const isValidError = isFieldTouched('isValid') && getFieldError('isValid'); // 是否有效
 
-        console.log('render, selectedProcedureObj = ',selectedProcedureObj)
         return (
             <Modal
                 title={stepKey?'编辑程序':'新增程序'}
                 visible={visibility}
                 onOk={this.handleSubmit}
-                // confirmLoading={confirmLoading}
+                confirmLoading={confirmLoading}
                 onCancel={this.handleCancel}
                 destroyOnClose={true}
             >
@@ -160,8 +186,6 @@ class _AddStepModal extends Component {
 
                     <Form.Item
                         label="程序名称:"
-                        validateStatus={stepNameError ? 'error' : ''}
-                        help={stepNameError || ''}
                     >
                         {getFieldDecorator('stepName', {
                             rules: [{required: true, message: '请输入程序名称!'}],
@@ -175,8 +199,6 @@ class _AddStepModal extends Component {
 
                     <Form.Item
                         label="工序号:"
-                        validateStatus={procedureNumberError ? 'error' : ''}
-                        help={procedureNumberError || ''}
                     >
                         {getFieldDecorator('procedureNumber', {
                             rules: [{required: true, message: '请输入工序号!'}],
@@ -190,8 +212,6 @@ class _AddStepModal extends Component {
 
                     <Form.Item
                         label="工序名称:"
-                        validateStatus={procedureNameError ? 'error' : ''}
-                        help={procedureNameError || ''}
                     >
                         {getFieldDecorator('procedureName', {
                             rules: [{required: true, message: '请输入工序名称!'}],
@@ -205,8 +225,6 @@ class _AddStepModal extends Component {
 
                     <Form.Item
                         label="工序生产时间(分):"
-                        validateStatus={procedureProduceDurationError ? 'error' : ''}
-                        help={procedureProduceDurationError || ''}
                     >
                         {getFieldDecorator('procedureProduceDuration', {
                             rules: [{required: true, message: '请输入工序生产时间!'}],
@@ -222,8 +240,6 @@ class _AddStepModal extends Component {
 
                     <Form.Item
                         label="工序最短时间(分):"
-                        validateStatus={procedureMinimumDurationError ? 'error' : ''}
-                        help={procedureMinimumDurationError || ''}
                     >
                         {getFieldDecorator('procedureMinimumDuration', {
                             rules: [{required: true, message: '请输入工序最短时间!'}],
@@ -237,34 +253,35 @@ class _AddStepModal extends Component {
                         )}
                     </Form.Item>
 
-                    <Form.Item
-                        label="是否有效:"
-                        hasFeedback
-                        validateStatus={isValidError ? 'error' : ''}
-                        help={isValidError || ''}
-                    >
-                        {getFieldDecorator('isValid', {
-                            rules: [{required: true, message: '请选择有效状态!'}],
-                            initialValue: isValid,
-                        })(
-                            <Select
-                                placeholder="请选择有效状态"
-                                autoClearSearchValue={true}
+                    {
+                        stepKey && (
+                            <Form.Item
+                                label="是否有效:"
+                                // hasFeedback
                             >
-                                {
-                                    validStateList.map(role => {
-                                        return (
-                                            <Option
-                                                key={role.key}
-                                                value={role.value}
-                                            >{role.label}</Option>
-                                        )
-                                    })
-                                }
-                            </Select>
-                        )}
-                    </Form.Item>
-
+                                {getFieldDecorator('isValid', {
+                                    rules: [{required: true, message: '请选择有效状态!'}],
+                                    initialValue: isValid,
+                                })(
+                                    <Select
+                                        placeholder="请选择有效状态"
+                                        autoClearSearchValue={true}
+                                    >
+                                        {
+                                            validStateList.map(role => {
+                                                return (
+                                                    <Option
+                                                        key={role.key}
+                                                        value={role.value}
+                                                    >{role.label}</Option>
+                                                )
+                                            })
+                                        }
+                                    </Select>
+                                )}
+                            </Form.Item>
+                        )
+                    }
                 </Form>
             </Modal>
         );

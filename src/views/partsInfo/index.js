@@ -1,8 +1,15 @@
-import React, { Component } from 'react'
+import React, {Component} from 'react'
 import {Table, Form, Select, Input, Button, message} from 'antd';
 import styled from "styled-components";
 import freshId from "fresh-id";
-import {http, isEmpty, validStateList, workingProcedureColumns, workingStepColumns} from '../../utils'
+import {
+    http,
+    isEmpty,
+    validStateList,
+    validStateListForFilter,
+    workingProcedureColumns,
+    workingStepColumns
+} from '../../utils'
 import {TableButton} from "../../components/TableButton";
 import {AddEditPartModal} from "./components/AddEditPartModal";
 import {AddEditStepModal} from "./components/AddEditStepModal";
@@ -13,597 +20,790 @@ const Option = Select.Option
 
 const _ = require('lodash')
 
+
 class EditableCell extends React.Component {
-  render() {
-    const {
-      factoryList,
-      editing,
-      dataIndex,
-      title,
-      record,
-      index,
-      ...restProps
-    } = this.props;
+    render() {
+        const {
+            factoryList,
+            editing,
+            dataIndex,
+            title,
+            record,
+            index,
+            ...restProps
+        } = this.props;
 
-    // if(dataIndex && record){
-    //     console.log('dataIndex', dataIndex, 'record[dataIndex]', record[dataIndex])
-    // }
-
-    return (
-        <EditableContext.Consumer>
-          {(form) => {
-            return (
-                <td {...restProps}>
-                  {
-                    (
-                        // 是否有效-下拉选框
-                        dataIndex === 'isValid' && record[dataIndex] !== ''
-                            ? validStateList.filter(status => status.value === parseInt(record[dataIndex]))[0].label //避免使用字面量作为value: 如 value为1,2,3...，显示的是'待发货/待发货'
-                            : (
-                                // 零件类型-下拉选择框
-                                dataIndex === 'partType' && record[dataIndex] !== ''
-                                    ? factoryList.filter(factory => factory.value === record[dataIndex])[0].label
+        return (
+            <EditableContext.Consumer>
+                {(form) => {
+                    return (
+                        <td {...restProps}>
+                            {
+                                dataIndex === 'isValid'
+                                    ? validStateList.filter(state => state.value === record[dataIndex])[0].label
                                     : restProps.children
-                            )
-                    )
-                  }
-                </td>
-            );
-          }}
-        </EditableContext.Consumer>
-    );
-  }
+                            }
+                        </td>
+                    );
+                }}
+            </EditableContext.Consumer>
+        );
+    }
 }
 
 class _PartsInfo extends Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      partData: null,  // 零件数据
-      stepData: null, // 工步数据
+    constructor(props) {
+        super(props);
+        this.state = {
+            partData: null,  // 零件数据
+            immutableDataSet: null, // 零件数据(用来保存不可变的数据以供筛选)
+            stepData: null, // 工步数据
+            clickedPart: null, // 点击的零件
 
-      partColumns: [], // 零件列
-      stepColumns: [], // 工步列
+            partColumns: [], // 零件列
+            stepColumns: [], // 工步列
 
-      addPartModalVisible: false, //增加零件Modal
-      addStepModalVisible: false, //增加程序Modal
+            addPartModalVisible: false, //增加零件Modal
+            addStepModalVisible: false, //增加程序Modal
 
-      selectedPart: {},
-      selectedProcedure: {},
+            selectedPart: {},
+            selectedProcedure: {},
 
-      selectedRowKeysPartTable: [],
-      selectedRowKeysProcedureTable: [],
+            selectedRowKeysPartTable: [],
+            selectedRowKeysProcedureTable: [],
 
-      loading: false,
-    };
-  }
+            loading: false,
 
-  // 零件表格 行勾选状态的监听
-  onPartTableSelectChange = (selectedRowKeys) => {
-    console.log('onPartTableSelectChange called: ', selectedRowKeys);
-    this.setState({selectedRowKeysPartTable: selectedRowKeys});
-  }
-
-  // 工序表格 行勾选状态的监听
-  onProcedureTableSelectChange = (selectedRowKeys) => {
-    console.log('onProcedureTableSelectChange called: ', selectedRowKeys);
-    this.setState({selectedRowKeysProcedureTable: selectedRowKeys});
-  }
-
-  componentWillMount() {
-    // console.log('shippingtableA componentWillMount called', this.props)
-    //Todo:For test only
-    let partTableFields = this.constructTableFields('working_part')
-    let stepTableFields = this.constructTableFields('working_step')
-    this.setState({
-      partColumns: partTableFields,
-      stepColumns: stepTableFields,
-    })
-  }
-
-  async componentDidMount() {
-    // const result = await http.post('/factory/factoryList', {})
-    // if (result.ret === '200') {
-    //   this.setState({
-    //     factoryList: result.data.content.map(item => ({
-    //       key: `factory_${item.code}`,
-    //       value: item.code,
-    //       label: item.name
-    //     }))
-    //   })
-    // } else {
-    //   message.error('获取工厂列表失败！请稍候重试。')
-    // }
-
-    // Todo: this is mocked data, FOR TEST ONLY
-    this.setState({
-      partData: this.constructMockData('working_part'),
-      stepData: this.constructMockData('working_step'),
-    })
-
-  }
-
-  componentWillReceiveProps(nextProps, nextState) {
-    // console.log('componentWillReceiveProps called', nextProps, this.props)
-    const {tableType: tableTypeThis} = this.props
-    const {tableType: tableTypeNext} = nextProps
-    if (tableTypeThis !== tableTypeNext) {
-      // console.log('componentWillReceiveProps entered')
-      let partTableFields = this.constructTableFields('working_part')
-      let stepTableFields = this.constructTableFields('working_step')
-
-      this.setState({
-        partColumns: partTableFields,
-        stepColumns: stepTableFields,
-      })
+            // 筛选条件对象
+            filterConditionObj: {
+                partName: '',
+                isValid: '',
+            },
+        };
     }
-  }
 
-  shouldComponentUpdate(nextProps, nextState) {
-    // console.log('shouldComponentUpdate called', nextProps, nextState)
-    return nextState !== this.state || nextProps !== this.props;
-  }
+    // 零件表格 行勾选状态的监听
+    onPartTableSelectChange = (selectedRowKeys) => {
+        console.log('onPartTableSelectChange called: ', selectedRowKeys);
+        this.setState({selectedRowKeysPartTable: selectedRowKeys});
+    }
 
-  // 测试：构造测试数据
-  constructMockData = (tableType) => {
-    let dataSet = []
+    // 工序表格 行勾选状态的监听
+    onProcedureTableSelectChange = (selectedRowKeys) => {
+        console.log('onProcedureTableSelectChange called: ', selectedRowKeys);
+        this.setState({selectedRowKeysProcedureTable: selectedRowKeys});
+    }
 
-    if (tableType === 'working_part') {
-      for (let i = 0; i < 10; i++) {
-        dataSet.push(
-            {
-              index: i+1,// 序号
-              key: freshId(),// 唯一ID
-              partType:'行星轮',// 零件类型名称
-              partNumber:i+1,// 零件编号
-              partName: `${Math.ceil(Math.random()*10)}D-${i%2===0?'一':'二'}级`,// 零件名称
-              isValid:i%2===0?1:2 // 是否有效
+    componentWillMount() {
+        // console.log('shippingtableA componentWillMount called', this.props)
+        //Todo:For test only
+        let partTableFields = this.constructTableFields('working_part')
+        let stepTableFields = this.constructTableFields('working_step')
+        this.setState({
+            partColumns: partTableFields,
+            stepColumns: stepTableFields,
+        })
+    }
+
+    async componentDidMount() {
+        const partData = await this.constructData('working_part')
+        this.setState({
+            partData,
+            immutableDataSet: partData,
+        }, async () => {
+            const {partData} = this.state
+            this.setState({
+                stepData: await this.constructData('working_step', partData.map(data => data.id)),
+                clickedPart: partData.length > 0 ? partData[0] : null,
+            })
+        })
+    }
+
+    componentWillReceiveProps(nextProps, nextState) {
+        // console.log('componentWillReceiveProps called', nextProps, this.props)
+        const {tableType: tableTypeThis} = this.props
+        const {tableType: tableTypeNext} = nextProps
+        if (tableTypeThis !== tableTypeNext) {
+            // console.log('componentWillReceiveProps entered')
+            let partTableFields = this.constructTableFields('working_part')
+            let stepTableFields = this.constructTableFields('working_step')
+
+            this.setState({
+                partColumns: partTableFields,
+                stepColumns: stepTableFields,
+            })
+        }
+    }
+
+    shouldComponentUpdate(nextProps, nextState) {
+        // console.log('shouldComponentUpdate called', nextProps, nextState)
+        return nextState !== this.state || nextProps !== this.props;
+    }
+
+    // 测试：构造测试数据
+    constructData = async (tableType, ids) => {
+        let params = {
+            pageNum: 0,
+            pageSize: 0,
+        }
+
+        let dataSet = []
+
+        if (tableType === 'working_part') {
+            let originalContent = await this.callNetworkRequest({
+                requestUrl: '/productInfo/find/all',
+                params: Object.assign({}, params, {
+                    query: {
+                        // 查询全部数据，不传递如下两个参数
+                        // partName: '',
+                        // isFlag: '',
+                    }
+                }),
+                requestMethod: 'POST'
+            })
+
+            if (originalContent.code === 200) {
+                dataSet = originalContent.data.list.map((content, index) => {
+                    return {
+                        index: index + 1,// 用于列表展示的序号
+                        key: freshId(),// 用于列表渲染的key
+                        id: content.id,// 数据库中该条数据的主键
+                        partTypeCode: content.partTypeCode,// 零件类型编号
+                        partTypeName: content.partTypeName,// 零件类型名称
+                        partCode: content.partCode || '--',// 零件编号
+                        partName: content.partName || '--',// 零件名称
+                        machineNumber: content.machineNo || '--', // 设备编号
+                        machineName: content.machineName, // 设备名称
+                        isValid: content.isFlag, // 是否有效
+                    }
+                })
             }
-        )
-      }
-    } else {
-      for (let i = 0; i < 20; i++) {
-        dataSet.push(
-            {
-              index: i+1,// 序号
-              key: freshId(),// 唯一ID
-              partName: `${Math.ceil(Math.random()*10)}D-${i%2===0?'一':'二'}级`,// 零件名称
-              stepName: `O${100+i}`,// 程序名称
-              procedureNumber:i+1,// 工序号
-              procedureName: `${Math.ceil(Math.random()*10)}D-${i%2===0?'一':'二'}级`,// 工序名称
-              procedureProduceDuration: 30,// 工序生产时间(分)
-              procedureMinimumDuration: 24,// 工序最短时间(分)
-              isValid:i%2===0?1:2// 是否有效
+        } else {
+            let originalDatas = []
+            if (ids.length > 0) {
+                let originalContent = await this.callNetworkRequest({
+                    requestUrl: '/productProcesses/find/productinfoid',
+                    params: Object.assign({}, params, {
+                        query: {
+                            productInfoId: ids[0] // 接口未提供批量查询，只得这样循环调用接口再拼合数据
+                        }
+                    }),
+                    requestMethod: 'POST'
+                })
+                if (originalContent.code === 200) {
+                    originalDatas = originalDatas.concat(originalContent.data.list)
+                }
             }
-        )
-      }
+            console.log('originalDatas', originalDatas)
+            dataSet = originalDatas.map((content, index) => {
+                let key = freshId()
+                return {
+                    index: index + 1,// 序号
+                    key,
+                    procedureKey: key,// 唯一ID
+                    id: content.id,// 数据库中该条数据的主键
+                    partTypeCode: content.partTypeCode,// 零件类型编号
+                    partTypeName: content.partTypeName,// 零件类型名称
+                    partCode: content.partCode,// 零件编号
+                    partName: content.partName,// 零件名称
+                    machineNumber: content.machineNo || '--', // 设备编号
+                    machineName: content.machineName, // 设备名称
+                    stepName: content.procedureName,// 程序名称
+                    procedureNumber: content.processNo,// 工序号
+                    procedureName: content.processName,// 工序名称
+                    procedureProduceDuration: content.nomalTime,// 工序生产时间(分)
+                    procedureMinimumDuration: content.shortTime,// 工序最短时间(分)
+                    isValid: content.isFlag// 是否有效
+                }
+            })
+        }
+        console.log('===dataSet===', dataSet)
+        return dataSet
     }
-    return dataSet
-  }
 
-  // 构建表头结构
-  constructTableFields = (tableType) => {
-    let baseColumnsArray = []
-    switch (tableType) {
-      case 'working_part':
-        baseColumnsArray = workingProcedureColumns
-        break
-      case 'working_step':
-        baseColumnsArray = workingStepColumns
-        break
-      default:
-        break
+    // 构建表头结构
+    constructTableFields = (tableType) => {
+        let baseColumnsArray = []
+        switch (tableType) {
+            case 'working_part':
+                baseColumnsArray = workingProcedureColumns
+                break
+            case 'working_step':
+                baseColumnsArray = workingStepColumns
+                break
+            default:
+                break
+        }
+        return baseColumnsArray.concat(this.getOperationFields(tableType))
     }
-    console.log('this.getOperationFields(tableType)', this.getOperationFields(tableType))
-    return baseColumnsArray.concat(this.getOperationFields(tableType))
-  }
 
-  getOperationFields = (type) => {
-    const editBaseColumn = {
-      title: '操作',
-      dataIndex: 'operation',
-      width: '15%',
-      render: (text, record) => {
+    getOperationFields = (type) => {
+        const editBaseColumn = {
+            title: '操作',
+            dataIndex: 'operation',
+            width: '10%',
+            render: (text, record) => {
+                return (
+                    <div>
+                        <OperationArea>
+                            <TableButton
+                                type='edit'
+                                size={'small'}
+                                onClick={(event) => {
+                                    this.edit(record, type)
+                                    // 防止与行点击事件冲突
+                                    event.stopPropagation()
+                                }}
+                            />
+
+                            {
+                                type === 'working_part' && (
+                                    <TableButton
+                                        type='edit'
+                                        customizedText={'新增程序'}
+                                        onClick={(event) => {
+                                            this.addWorkingProcedure(record)
+                                            event.stopPropagation()
+                                        }}
+                                    />
+                                )
+                            }
+
+                        </OperationArea>
+                    </div>
+                );
+            },
+        }
+        if (type === 'working_part') {
+            return [
+                editBaseColumn
+            ]
+        } else {
+            return [
+                editBaseColumn
+            ]
+        }
+    }
+
+    // 编辑(零件 或 工序)
+    edit = (record, type) => {
+        console.log('edit called key=', record, type)
+        if (type === 'working_part') {
+            this.setState({
+                addPartModalVisible: true,
+                selectedPart: record
+            })
+        } else {
+            this.setState({
+                addStepModalVisible: true,
+                selectedProcedure: record
+            })
+        }
+    }
+
+    // 新增零件
+    addPart = (record) => {
+        console.log('addPart called key=', record)
+        this.setState({
+            addPartModalVisible: true,
+            selectedPart: record
+        })
+    }
+
+    // 批量设置零件状态
+    togglePartValidation = async (valid) => {
+        const {selectedRowKeysPartTable, immutableDataSet} = this.state
+        if (selectedRowKeysPartTable.length === 0) {
+            message.warning('请勾选需要操作的行！')
+            return
+        }
+        // 批量设置零件状态为有效/无效，并请求接口刷新数据
+        let originalContent = await this.callNetworkRequest({
+            requestUrl: '/productInfo/update/isflag',
+            params: {
+                idArr: immutableDataSet.filter(data => selectedRowKeysPartTable.findIndex(key => key === data.key) > -1).map(data => data.id),
+                isFlag: !!valid ? '1' : '0',
+            },
+            requestMethod: 'POST'
+        })
+
+        if (originalContent.code === 200) {
+            this.setState({
+                partData: null,  // 零件数据
+                immutableDataSet: null, // 零件数据(用来保存不可变的数据以供筛选)
+                selectedRowKeysPartTable: [],// 清空暂存的已选择的行
+            })
+
+            const partData = await this.constructData('working_part')
+            this.setState({
+                partData,
+                immutableDataSet: partData,
+            }, async () => {
+                const {partData} = this.state
+                this.setState({
+                    stepData: await this.constructData('working_step', partData.map(data => data.id)),
+                    clickedPart: partData.length > 0 ? partData[0] : null,
+                }, ()=>{
+                    // 重新执行搜索
+                    this.onSearchCalled()
+                })
+            })
+        }
+    }
+
+    // 新增工序
+    addWorkingProcedure = (record) => {
+        console.log('addWorkingProcedure called key=', record)
+        this.setState({
+            addStepModalVisible: true,
+            // selectedProcedure: _.pick(record,['partNumber','partName','partType'])
+            selectedProcedure: record,
+        })
+    }
+
+    // 批量设置工序状态
+    toggleProcedureValidation = async (valid) => {
+        const {selectedRowKeysProcedureTable, immutableDataSet, stepData, clickedPart} = this.state
+        if (selectedRowKeysProcedureTable.length === 0) {
+            message.warning('请勾选需要操作的行！')
+            return
+        }
+        // 批量设置工序状态为有效/无效，并请求接口刷新数据
+        let originalContent = await this.callNetworkRequest({
+            requestUrl: 'productProcesses/update/isflag',
+            params: {
+                idArr: stepData.filter(data => selectedRowKeysProcedureTable.findIndex(key => key === data.key) > -1).map(data => data.id),
+                isFlag: !!valid ? '1' : '0',
+            },
+            requestMethod: 'POST'
+        })
+
+        // 只重新请求工步的数据，不重新请求零件的数据
+        if (originalContent.code === 200) {
+            this.setState({
+                stepData: null, // 工步数据
+                selectedRowKeysProcedureTable: [],// 清空暂存的已选择的行
+            })
+
+            this.setState({
+                stepData: await this.constructData('working_step', clickedPart ? [clickedPart.id] : immutableDataSet.map(data => data.id)),
+            })
+
+            message.success('操作成功！')
+        }
+    }
+
+    // 点击行的回调
+    onRowClicked = async (record) => {
+        this.setState({
+            stepData: await this.constructData('working_step', [record.id]),
+            clickedPart: record,
+        })
+    }
+
+    // 调用网络请求
+    callNetworkRequest = async ({requestUrl, params, requestMethod}) => {
+        let result
+        if (requestMethod === 'POST') {
+            result = await http.post(requestUrl, params)
+        } else {
+            result = await http.get(requestUrl)
+        }
+        console.log(`request: ${requestUrl}`, 'params:', params, 'result:', result)
+        return result
+    }
+
+    // 编辑零件Modal点击确定按钮的回调
+    onAddEditPartModalOkClickedListener = async () => {
+        this.setState({
+            addPartModalVisible: false,
+        })
+
+        //重新请求接口更新Data，刷新页面
+        this.setState({
+            partData: null,  // 零件数据
+            immutableDataSet: null, // 零件数据(用来保存不可变的数据以供筛选)
+            stepData: null, // 工步数据
+        })
+
+        const partData = await this.constructData('working_part')
+        this.setState({
+            partData,
+            immutableDataSet: partData,
+        }, async () => {
+            const {partData, clickedPart} = this.state
+            this.setState({
+                stepData: await this.constructData('working_step', partData.map(data => data.id)),
+                clickedPart: partData.length > 0 ? partData[0] : null
+            })
+        })
+
+        // 重新执行搜索
+        this.onSearchCalled()
+    }
+
+    // 编辑工序Modal点击确定按钮的回调
+    onAddEditStepModalOkClickedListener = async () => {
+        this.setState({
+            addStepModalVisible: false
+        })
+
+        //重新请求接口更新Data，刷新页面
+        this.setState({
+            stepData: null, // 工步数据
+        })
+
+        const {partData, clickedPart} = this.state
+        this.setState({
+            stepData: await this.constructData('working_step', clickedPart ? [clickedPart.id] : partData.map(data => data.id)),
+        })
+    }
+
+    // Modal点击取消按钮的回调
+    onModalCancelClickedListener = () => {
+        this.setState({
+            addPartModalVisible: false,
+            addStepModalVisible: false
+        })
+    }
+
+    // 搜索回调
+    onSearchCalled = () => {
+        const {partData, immutableDataSet, filterConditionObj} = this.state
+        const {partName, isValid} = filterConditionObj
+        console.log('onClickCalled', partData, filterConditionObj)
+        let filteredData = []
+        if (!(partName === '' && isValid === '')) {
+            filteredData = immutableDataSet.filter(data => {
+                if (partName !== '' && isValid !== '') {
+                    return data.partName.indexOf(partName) > -1 && data.isValid === isValid
+                } else if (partName !== '') {
+                    return data.partName.indexOf(partName) > -1
+                } else if (isValid !== '') {
+                    return data.isValid === isValid
+                }
+            })
+        } else {
+            filteredData = immutableDataSet
+        }
+        console.log('onSearchCalled', filteredData)
+
+        this.setState({
+            partData: filteredData.map((data,index)=>({...data, index: index+1 })),
+        }, async ()=>{
+            const {clickedPart, partData} = this.state
+            this.setState({
+                stepData: await this.constructData('working_step', partData.map(data => data.id)),
+                clickedPart: partData.length>0 ? partData[0] : null
+            })
+        })
+    }
+
+    render() {
+        const {
+            partData,
+            stepData,
+            clickedPart,
+            selectedRowKeysPartTable,
+            selectedRowKeysProcedureTable,
+            factoryList,
+            partColumns,
+            stepColumns,
+            addPartModalVisible,
+            selectedPart,
+            addStepModalVisible,
+            selectedProcedure
+        } = this.state;
+
+        const partTableRowSelection = {
+            selectedRowKeys: selectedRowKeysPartTable,
+            onChange: this.onPartTableSelectChange,
+        };
+
+        const procedureTableRowSelection = {
+            selectedRowKeys: selectedRowKeysProcedureTable,
+            onChange: this.onProcedureTableSelectChange,
+        };
+
+        const components = {
+            body: {
+                cell: EditableCell,
+            },
+        };
+
+        const columnsPart = partColumns.map((col) => {
+            // if (!col.editable) {
+            //   return col;
+            // }
+            return {
+                ...col,
+                onCell: record => ({
+                    record,
+                    dataIndex: col.dataIndex,
+                    title: col.title,
+                    factoryList: factoryList,
+                }),
+            };
+        });
+
+        const columnsStep = stepColumns.map((col) => {
+            // if (!col.editable) {
+            //   return col;
+            // }
+            return {
+                ...col,
+                onCell: record => ({
+                    record,
+                    dataIndex: col.dataIndex,
+                    title: col.title,
+                    factoryList: factoryList,
+                }),
+            };
+        });
+
         return (
             <div>
-              <OperationArea>
-                <TableButton
-                    type='edit'
-                    onClick={(event) => {
-                      this.edit(record, type)
-                      // 防止与行点击事件冲突
-                      event.stopPropagation()
-                    }}
+                <StyledContent>
+                    <EditableContext.Provider value={this.props.form}>
+                        <Table
+                            className="data-board-table-30"
+                            // bodyStyle={{minHeight: 'calc(100vh - 280px)', maxHeight: 'calc(100vh - 280px)'}}
+                            title={() => {
+                                return (
+                                    <TableControllerView>
+                                        <TableSearchView style={{width: '100%', justifyContent: 'flex-start'}}>
+                                            <InputView
+                                                key={'tab3_1'}
+                                                placeholder={"请输入零件名称"}
+                                                onCalled={(e) => {
+                                                    const {value} = e.target
+                                                    this.setState((prevState) => {
+                                                        return {
+                                                            filterConditionObj: Object.assign({}, prevState.filterConditionObj, {partName: value})
+                                                        }
+                                                    })
+                                                }}
+                                            />
+
+                                            <SelectView
+                                                key={'tab3_2'}
+                                                placeHolder="选择有效状态"
+                                                options={validStateListForFilter}
+                                                onChangeCalled={(value = '') => {
+                                                    this.setState((prevState) => {
+                                                        const validState = validStateList.filter(state => state.value === value)[0]
+                                                        if (validState) {
+                                                            return {
+                                                                filterConditionObj: Object.assign({}, prevState.filterConditionObj,
+                                                                    {isValid: validState.value}
+                                                                )
+                                                            }
+                                                        }
+                                                        return {
+                                                            filterConditionObj: Object.assign({}, prevState.filterConditionObj,
+                                                                {isValid: ''}
+                                                            )
+                                                        }
+                                                    })
+                                                }}
+                                            />
+
+                                            <SearchButton
+                                                onClickCalled={this.onSearchCalled}
+                                            />
+
+                                        </TableSearchView>
+                                        <TableButtonsView>
+                                            <Button
+                                                style={{marginRight: '10px'}}
+                                                type={'primary'}
+                                                size={'default'}
+                                                onClick={() => this.addPart({})}
+                                            >新增</Button>
+                                            <Button
+                                                style={{marginRight: '10px'}}
+                                                type={'primary'}
+                                                size={'default'}
+                                                onClick={() => this.togglePartValidation(true)}
+                                            >设为有效</Button>
+                                            <Button
+                                                type={'primary'}
+                                                size={'default'}
+                                                onClick={() => this.togglePartValidation(false)}
+                                            >设为无效</Button>
+                                        </TableButtonsView>
+                                    </TableControllerView>
+                                )
+                            }}
+                            rowSelection={partTableRowSelection}
+                            rowClassName={record => {
+                                if (clickedPart) {
+                                    return record.key === clickedPart.key ? 'table-row-clicked' : ''
+                                }
+                                return ''
+                            }}
+                            components={components}
+                            bordered={false}
+                            dataSource={partData}
+                            columns={columnsPart}
+                            // rowClassName="editable-row"
+                            pagination={{
+                                pageSize: 6,
+                                showQuickJumper: true,
+                                total: partData&&partData.length?partData.length:0,
+                                showTotal: ((total) => {
+                                  return `共${total}条`
+                                }),
+                                onChange: async (page, pageSize) => {
+                                    const {partData} = this.state
+                                    console.log('onChange called : page', page, 'pageSize', pageSize, 'partData', partData)
+                                    const clickedPart = partData.filter(data => data.index === ((page - 1) * pageSize + 1))[0]
+                                    this.setState({
+                                        stepData: await this.constructData('working_step', clickedPart ? [clickedPart.id] : partData.map(data => data.id)),
+                                        clickedPart
+                                    })
+                                }
+                            }}
+                            loading={partData === null}
+                            onRow={(record) => {
+                                return {
+                                    onClick: (event) => {
+                                        // 点击行: 只有在非编辑状态并且没有点击编辑按钮，才可以响应行点击事件
+                                        this.onRowClicked(record)
+                                    },
+                                    // onDoubleClick: (event) => {},
+                                    // onContextMenu: (event) => {},
+                                    // onMouseEnter: (event) => {},  // 鼠标移入行
+                                    // onMouseLeave: (event) => {}
+                                };
+                            }}
+                        />
+                        <div style={{height: '1px', backgroundColor: '#ddd', width: '99%', margin: '0 0.5%'}}/>
+                        <Table
+                            className="data-board-table-70"
+                            // bodyStyle={{minHeight: 'calc(100vh - 280px)', maxHeight: 'calc(100vh - 280px)'}}
+                            title={() => {
+                                return (
+                                    <TableControllerView>
+                                        <TableSearchView style={{width: '100%', justifyContent: 'flex-start'}}>
+                                            <div
+                                                style={{fontWeight: 'bold'}}>{`当前零件：${clickedPart ? `${clickedPart.machineName} / ${clickedPart.partTypeName} / ${clickedPart.partName}` : '--'}`}</div>
+                                        </TableSearchView>
+                                        <TableButtonsView>
+                                            <Button
+                                                style={{marginRight: '10px'}}
+                                                type={'primary'}
+                                                size={'default'}
+                                                onClick={() => this.toggleProcedureValidation(true)}
+                                            >设为有效</Button>
+                                            <Button
+                                                type={'primary'}
+                                                size={'default'}
+                                                onClick={() => this.toggleProcedureValidation(false)}
+                                            >设为无效</Button>
+                                        </TableButtonsView>
+                                    </TableControllerView>
+                                )
+                            }}
+                            rowSelection={procedureTableRowSelection}
+                            components={components}
+                            bordered={false}
+                            dataSource={stepData}
+                            columns={columnsStep}
+                            // rowClassName="editable-row"
+                            // pagination={{
+                            //   pageSize:8,
+                            //   showQuickJumper: true,
+                            //   onChange: this.cancel,
+                            // }}
+                            pagination={false}
+                            scroll={{y: 'calc((100vh - 330px)/10*5)'}}
+                            loading={stepData === null}
+                            // onRow={(record) => {
+                            //   return {
+                            //     onClick: (event) => {
+                            //       // 点击行: 只有在非编辑状态并且没有点击编辑按钮，才可以响应行点击事件
+                            //       this.onRowClicked(record)
+                            //     },
+                            //     // onDoubleClick: (event) => {},
+                            //     // onContextMenu: (event) => {},
+                            //     // onMouseEnter: (event) => {},  // 鼠标移入行
+                            //     // onMouseLeave: (event) => {}
+                            //   };
+                            // }}
+                        />
+                    </EditableContext.Provider>
+                </StyledContent>
+                <AddEditPartModal
+                    addPartModalVisible={addPartModalVisible}
+                    onOkClickedListener={this.onAddEditPartModalOkClickedListener}
+                    onCancelClickedListener={this.onModalCancelClickedListener}
+                    selectedPartObj={selectedPart}
                 />
-
-                {
-                  type === 'working_part' && (
-                      <TableButton
-                          type='duplicate'
-                          customizedText={'新增程序'}
-                          onClick={(event) => {
-                            this.addWorkingProcedure(record)
-                            event.stopPropagation()
-                          }}
-                      />
-                  )
-                }
-
-              </OperationArea>
+                <AddEditStepModal
+                    addStepModalVisible={addStepModalVisible}
+                    onOkClickedListener={this.onAddEditStepModalOkClickedListener}
+                    onCancelClickedListener={this.onModalCancelClickedListener}
+                    selectedProcedureObj={selectedProcedure}
+                />
             </div>
+
         );
-      },
     }
-    if (type === 'working_part'){
-      return [
-        editBaseColumn
-      ]
-    } else {
-      return [
-        editBaseColumn
-      ]
-    }
-  }
-
-  // 编辑(零件 或 工序)
-  edit = (record, type) => {
-    console.log('edit called key=',record, type)
-    if (type === 'working_part') {
-      this.setState({
-        addPartModalVisible: true,
-        selectedPart: record
-      })
-    } else {
-      this.setState({
-        addStepModalVisible: true,
-        selectedProcedure: record
-      })
-    }
-  }
-
-  // 新增零件
-  addPart = (record) => {
-    console.log('addPart called key=',record)
-    this.setState({
-      addPartModalVisible: true,
-      selectedPart: record
-    })
-  }
-
-  // 批量设置零件状态
-  togglePartValidation = (valid) => {
-    const {selectedRowKeysPartTable} = this.state
-    if (selectedRowKeysPartTable.length === 0) {
-      message.error('请勾选需要操作的行！')
-      return
-    }
-    // todo:调用接口，批量设置零件状态为有效/无效，并请求接口刷新数据
-
-  }
-
-  // 新增工序
-  addWorkingProcedure = (record) => {
-    console.log('addWorkingProcedure called key=',record)
-    this.setState({
-      addStepModalVisible: true,
-      selectedProcedure: _.pick(record,['partNumber','partName','partType'])
-    })
-  }
-
-  // 批量设置工序状态
-  toggleProcedureValidation = (valid) => {
-    const {selectedRowKeysProcedureTable} = this.state
-    if (selectedRowKeysProcedureTable.length === 0) {
-      message.error('请勾选需要操作的行！')
-      return
-    }
-    // todo:调用接口，批量设置工序状态为有效/无效，并请求接口刷新数据
-
-  }
-
-  // // 点击行的回调：传入参数订单的详情，之后使用该编号调用接口即可得到订单中的物料
-  // onRowClicked = (record) => {
-  //   console.log('onRowClicked called', record)
-  //   const {onRowClickedListener} = this.props
-  //   if (onRowClickedListener) {
-  //     onRowClickedListener(record)
-  //   }
-  // }
-
-  // 调用网络请求
-  callNetworkRequest = async ({requestUrl, params, requestMethod}) => {
-    let result
-    if (requestMethod === 'POST') {
-      result = await http.post(requestUrl, params)
-    } else {
-      result = await http.get(requestUrl)
-    }
-    console.log(`request: ${requestUrl}`, 'params:', params, 'result:', result)
-    return result
-  }
-
-  // Modal点击确定按钮的回调
-  onModalOkClickedListener = () => {
-    this.setState({
-      addPartModalVisible: false,
-      addStepModalVisible: false
-    })
-    //Todo: 重新请求接口更新Data，刷新页面
-  }
-
-  // Modal点击取消按钮的回调
-  onModalCancelClickedListener = () => {
-    this.setState({
-      addPartModalVisible: false,
-      addStepModalVisible: false
-    })
-  }
-
-  render() {
-    const {partData, stepData, selectedRowKeysPartTable, selectedRowKeysProcedureTable, factoryList, partColumns, stepColumns, addPartModalVisible, selectedPart, addStepModalVisible, selectedProcedure} = this.state;
-
-    const partTableRowSelection = {
-      selectedRowKeys: selectedRowKeysPartTable,
-      onChange: this.onPartTableSelectChange,
-    };
-
-    const procedureTableRowSelection = {
-      selectedRowKeys: selectedRowKeysProcedureTable,
-      onChange: this.onProcedureTableSelectChange,
-    };
-
-    const components = {
-      body: {
-        cell: EditableCell,
-      },
-    };
-
-    const columnsPart = partColumns.map((col) => {
-      if (!col.editable) {
-        return col;
-      }
-      return {
-        ...col,
-        onCell: record => ({
-          record,
-          dataIndex: col.dataIndex,
-          title: col.title,
-          factoryList: factoryList,
-        }),
-      };
-    });
-
-    const columnsStep = stepColumns.map((col) => {
-      if (!col.editable) {
-        return col;
-      }
-      return {
-        ...col,
-        onCell: record => ({
-          record,
-          dataIndex: col.dataIndex,
-          title: col.title,
-          factoryList: factoryList,
-        }),
-      };
-    });
-
-    return (
-        <div>
-          <StyledContent>
-            <TableControllerView>
-              <TableSearchView style={{width: '100%', justifyContent: 'flex-start'}}>
-                <InputView
-                    key={'tab3_1'}
-                    placeholder={"请输入零件名称"}
-                    onCalled={(e) => {
-                      const {value} = e.target
-                      this.setState((prevState) => {
-                        return {
-                          tab3_obj: Object.assign({}, prevState.tab3_obj, {recordNumber: value})
-                        }
-                      })
-                    }}
-                />
-
-                <SelectView
-                    key={'tab3_2'}
-                    placeHolder="选择有效状态"
-                    options={validStateList}
-                    onChangeCalled={(value = '') => {
-                      this.setState((prevState) => {
-                        const validState = validStateList.filter(factory => factory.value === value)[0]
-                        if (validState) {
-                          return {
-                            tab3_obj: Object.assign({}, prevState.tab3_obj,
-                                {clientFactory: validState.label}
-                            )
-                          }
-                        }
-                        return {
-                          tab3_obj: Object.assign({}, prevState.tab3_obj,
-                              {clientFactory: ''}
-                          )
-                        }
-                      })
-                    }}
-                />
-
-                <SearchButton
-                    onClickCalled={() => {}}
-                />
-
-              </TableSearchView>
-              <TableButtonsView/>
-            </TableControllerView>
-            <EditableContext.Provider value={this.props.form}>
-              <Table
-                  className="data-board-table-30"
-                  // bodyStyle={{minHeight: 'calc(100vh - 280px)', maxHeight: 'calc(100vh - 280px)'}}
-                  title={()=>{
-                    return (
-                        <TableButtonsView style={{justifyContent:'flex-start', height:'20px'}}>
-                          <Button
-                              style={{marginRight:'10px'}}
-                              type={'primary'}
-                              size={'small'}
-                              onClick={() => this.addPart({})}
-                          >新增</Button>
-                          <Button
-                              style={{marginRight:'10px'}}
-                              type={'primary'}
-                              size={'small'}
-                              onClick={() => this.togglePartValidation(true)}
-                          >设为有效</Button>
-                          <Button
-                              type={'primary'}
-                              size={'small'}
-                              onClick={() => this.togglePartValidation(false)}
-                          >设为无效</Button>
-                        </TableButtonsView>
-                    )
-                  }}
-                  rowSelection={partTableRowSelection}
-                  components={components}
-                  bordered={false}
-                  dataSource={partData}
-                  columns={columnsPart}
-                  // rowClassName="editable-row"
-                  pagination={{
-                    pageSize:4,
-                    showQuickJumper: true,
-                  }}
-                  loading={partData===null}
-                  // onRow={(record) => {
-                  //   return {
-                  //     onClick: (event) => {
-                  //       // 点击行: 只有在非编辑状态并且没有点击编辑按钮，才可以响应行点击事件
-                  //       this.onRowClicked(record)
-                  //     },
-                  //     // onDoubleClick: (event) => {},
-                  //     // onContextMenu: (event) => {},
-                  //     // onMouseEnter: (event) => {},  // 鼠标移入行
-                  //     // onMouseLeave: (event) => {}
-                  //   };
-                  // }}
-              />
-              <div style={{height:'1px', backgroundColor:'#ddd', width:'99%', margin:'0 0.5%'}}/>
-              <Table
-                  className="data-board-table-70"
-                  // bodyStyle={{minHeight: 'calc(100vh - 280px)', maxHeight: 'calc(100vh - 280px)'}}
-                  title={()=>{
-                    return (
-                        <TableButtonsView style={{justifyContent:'flex-start', height:'20px'}}>
-                          <Button
-                              style={{marginRight:'10px'}}
-                              type={'primary'}
-                              size={'small'}
-                              onClick={() => this.toggleProcedureValidation(true)}
-                          >设为有效</Button>
-                          <Button
-                              type={'primary'}
-                              size={'small'}
-                              onClick={() => this.toggleProcedureValidation(false)}
-                          >设为无效</Button>
-                        </TableButtonsView>
-                    )
-                  }}
-                  rowSelection={procedureTableRowSelection}
-                  components={components}
-                  bordered={false}
-                  dataSource={stepData}
-                  columns={columnsStep}
-                  // rowClassName="editable-row"
-                  // pagination={{
-                  //   pageSize:8,
-                  //   showQuickJumper: true,
-                  //   onChange: this.cancel,
-                  // }}
-                  pagination={false}
-                  scroll={{y: 'calc((100vh - 330px)/10*5)'}}
-                  loading={stepData===null}
-                  // onRow={(record) => {
-                  //   return {
-                  //     onClick: (event) => {
-                  //       // 点击行: 只有在非编辑状态并且没有点击编辑按钮，才可以响应行点击事件
-                  //       this.onRowClicked(record)
-                  //     },
-                  //     // onDoubleClick: (event) => {},
-                  //     // onContextMenu: (event) => {},
-                  //     // onMouseEnter: (event) => {},  // 鼠标移入行
-                  //     // onMouseLeave: (event) => {}
-                  //   };
-                  // }}
-              />
-            </EditableContext.Provider>
-          </StyledContent>
-          <AddEditPartModal
-              addPartModalVisible={addPartModalVisible}
-              onOkClickedListener={this.onModalOkClickedListener}
-              onCancelClickedListener={this.onModalCancelClickedListener}
-              selectedPartObj={selectedPart}
-          />
-          <AddEditStepModal
-              addStepModalVisible={addStepModalVisible}
-              onOkClickedListener={this.onModalOkClickedListener}
-              onCancelClickedListener={this.onModalCancelClickedListener}
-              selectedProcedureObj={selectedProcedure}
-          />
-        </div>
-
-    );
-  }
 }
 
 class SelectView extends Component {
-  shouldComponentUpdate(nextProps, nextState) {
-    return nextProps.key !== this.props.key;
-  }
+    shouldComponentUpdate(nextProps, nextState) {
+        return nextProps.key !== this.props.key;
+    }
 
-  render() {
-    const {placeHolder, options, onChangeCalled} = this.props
-    return (
-        <Select
-            allowClear={true}
-            style={{width: '15%', marginRight: '6px'}}
-            placeholder={placeHolder}
-            onChange={onChangeCalled}
-        >
-          {
-            options.map(option => {
-              return (
-                  <Option
-                      key={option.key}
-                      value={option.value}>
-                    {option.label}
-                  </Option>
-              )
-            })
-          }
-        </Select>
-    )
-  }
+    render() {
+        const {placeHolder, options, onChangeCalled} = this.props
+        return (
+            <Select
+                size={'default'}
+                allowClear={true}
+                style={{width: '20%', marginRight: '6px'}}
+                placeholder={placeHolder}
+                onChange={onChangeCalled}
+            >
+                {
+                    options.map(option => {
+                        return (
+                            <Option
+                                key={option.key}
+                                value={option.value}>
+                                {option.label}
+                            </Option>
+                        )
+                    })
+                }
+            </Select>
+        )
+    }
 }
 
 const SearchButton = ({onClickCalled}) => {
-  return (
-      <Button
-          type="primary"
-          onClick={onClickCalled}
-      >查询</Button>
-  )
+    return (
+        <Button
+            type="primary"
+            size={'default'}
+            onClick={onClickCalled}
+        >查询</Button>
+    )
 }
 
 const InputView = ({key, placeholder, onCalled}) => {
-  return (
-      <Input
-          key={key}
-          style={{width: '30%', marginRight: '6px'}}
-          placeholder={placeholder}
-          onChange={onCalled}
-          onPressEnter={onCalled}
-      />
-  )
+    return (
+        <Input
+            key={key}
+            size={'default'}
+            style={{width: '40%', marginRight: '6px'}}
+            placeholder={placeholder}
+            onChange={onCalled}
+            onPressEnter={onCalled}
+        />
+    )
 }
 
 const _PartsInfoIndex = Form.create()(_PartsInfo);
@@ -630,7 +830,6 @@ const TableControllerView = styled.div`
   align-items: center;
   width: 100%;
   // border: red solid 2px;
-  padding: 0px 10px;
 `
 
 const TableSearchView = styled.div`
@@ -650,7 +849,7 @@ const TableButtonsView = styled.div`
   justify-content: flex-end;
   align-items: center;
   height: 40px;
-  width: 30%;
+  width: 100%;
   // border: blue solid 2px;
 `
 

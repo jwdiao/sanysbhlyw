@@ -1,9 +1,13 @@
 import React, { Component } from 'react'
 import styled from "styled-components";
-import { Input, Button,Select, Table, Popconfirm, message } from 'antd';
+import { Input, Button,Select, Table, message } from 'antd';
 
+import {TableButton} from "../../components/TableButton";
+import { workCenterColumns } from '../../utils'
+import { reqFindCenterList, reqSetCenterValid } from '../../api'
 import EditModel from './edit'
 const { Option } = Select;
+
 
 // 编辑组件
 class _WorkCenterIndex extends Component {
@@ -11,229 +15,235 @@ class _WorkCenterIndex extends Component {
   constructor(props) {
     super(props)
     this.state ={
-      centerName: '', // 加工中心名称
-      validValue: '1', // 是否有效
+      workCenterColumns: [], // 加工中心列
       listArr: [], // 列表
+
+      filterConditionObj: {
+        centerName: '', // 加工中心名称
+        validValue: '', // 是否有效
+      },
+
       editVisiable: false, // 新增弹窗是否显示
       editDataObj:{}, // 当前编辑的对象
+
       chekboxSelectedRowKeys: [] // 选中的checkbox
     }
   }
-  // 查询
-  searchFun = () => {
-    const { centerName, validValue } = this.state;
-    console.log('工作中心名称为：',centerName,' 有效无效值：',validValue)
+  // 构建表头结构
+  constructTableFields = () => {
+    let baseColumnsArray = workCenterColumns
+    return baseColumnsArray.concat(this.getOperationFields())
   }
-  // 工作中心名称回调
-  centerNameChange = (e) => {
-    this.setState({
-      centerName: e.target.value
-    })
-  }
-  // 是否有效下拉
-  handleChange = (value) => {
-    // console.log(`selected ${value}`);
-    this.setState({
-      validValue: value
-    })
-  }
-  // 编辑
-  handleEdit = (record, e) => {
-    console.log('edit:',record)
-    this.setState({
-      editVisiable:true,
-      editDataObj:record,
-    })
-  }
-  // 修改
-  updateDataHandle = (values)=> {
-    console.log('updata:',values)
-    // 调用修改接口
-  }
-
-  // 新增弹窗
-  showModal = () => {
-    this.setState({
-      editVisiable: true,
-      editDataObj:{}
-    });
-  }
-  // 弹窗取消
-  onModelCancel = e => {
-    console.log(e);
-    this.setState({
-      editVisiable: false,
-    });
-  } 
-  // 弹窗储存数据
-  saveData = (updateData) => {
-    console.log('ok:',updateData)
-    // 新增一条
-/*     const { listArr } = this.state
-    listArr.push(updateData)
-    this.setState({
-      listArr: listArr
-    }) */
-    // 调用新增接口
-    this.getListDataFun()
-  }
-  // 设为有效
-  confirmSetValidFun = () => {
-    const { chekboxSelectedRowKeys } = this.state;
-    console.log('chekboxSelectedRowKeys:',chekboxSelectedRowKeys)
-    if(chekboxSelectedRowKeys.length<=0) {
-      message.warning('至少选择一个！');
-      return;
-    }
-    // 调用接口
-    this.getListDataFun()
-  }
-  // 设为无效
-  confirmSetInValidFun = () => {
-    const { chekboxSelectedRowKeys } = this.state;
-    console.log('chekboxSelectedRowKeys:',chekboxSelectedRowKeys)
-    if(chekboxSelectedRowKeys.length<=0) {
-      message.warning('至少选择一个！');
-      return;
-    }
-    // 调用接口
-    this.getListDataFun()
-  }
-  componentDidMount() {
-    this.getListDataFun()
-  }
-  getListDataFun() {
-    const originalContent = [
-      {
-        id: '1',
-        workCenterCode: '01',
-        workCenterName: '机加',
-        isValid: '1'
-      },
-      {
-        id: '2',
-        workCenterCode: '02',
-        workCenterName: '涂装',
-        isValid: '0'
-      },
-      {
-        id: '3',
-        workCenterCode: '03',
-        workCenterName: '下料',
-        isValid: '1'
-      },
-    ];
-    const dataSource = originalContent.map((content, index)=>{
-      return {
-        num: index+1,// 用于列表展示的序号
-        key: content.id,// 用于列表渲染的key
-        workCenterCode: content.workCenterCode,
-        workCenterName: content.workCenterName,
-        isValid: content.isValid
-      }
-    })
-
-    this.setState({
-      listArr: dataSource,
-    })
-  }
-  render() {
-    const columns = [
-      {
-        title: '序号',
-        dataIndex: 'num',
-        key: 'num',
-        align: 'center'
-      },
-      {
-        title: '工作中心编号',
-        dataIndex: 'workCenterCode',
-        key: 'workCenterCode',
-        align: 'center'
-      },
-      {
-        title: '工作中心名称',
-        dataIndex: 'workCenterName',
-        key: 'workCenterName',
-        align: 'center'
-      },
-      {
-        title: '是否有效',
-        dataIndex: 'isValid',
-        key: 'isValid',
-        align: 'center'
-      },
+  getOperationFields = () => {
+    return [
       {
         title: '编辑',
         key: 'action',
         align: 'center',
         render: (text, record) => (
-          <Button type="primary" ghost onClick={(e) => this.handleEdit(record, e)}>编辑</Button>
-        ),
+          <TableButton
+            type='edit'
+            onClick={(event) => {
+              this.addAndEditFun(record)
+              // 防止与行点击事件冲突
+              event.stopPropagation()
+            }}
+        />
+        )
       },
-    ];
-    const { centerName, editVisiable, editDataObj } = this.state
+      
+    ]
+  }
+
+  componentDidMount() {
+    // 构造列
+    let tableFields = this.constructTableFields()
+    this.setState({
+      workCenterColumns: tableFields,
+    })
+
+    // 异步获取数据
+    this.getListDataFun()
+  }
+
+  // 设为有效和无效
+  toggleSetValidFun = async(valid) => {
+    const { chekboxSelectedRowKeys } = this.state;
+    // console.log('chekboxSelectedRowKeys:',chekboxSelectedRowKeys)
+    if(chekboxSelectedRowKeys.length<=0) {
+      message.warning('请勾选需要操作的行！');
+      return;
+    } else {
+      const idStr = chekboxSelectedRowKeys.join(',')
+      const res = await reqSetCenterValid(idStr, valid)
+      if(res && res.code === 200) {
+        message.success('设置成功');
+        this.setState({
+          chekboxSelectedRowKeys: []
+        })
+        // 调用列表接口
+        this.getListDataFun()
+      } else {
+        message.warning('设置失败！');
+      }
+    }    
+  }
+  // 获取列表接口
+  async getListDataFun() {
+    const { centerName, validValue } = this.state.filterConditionObj
+    const res = await reqFindCenterList({
+      "workCenterName": centerName,
+      "isFlag": validValue,
+    })
+    if (res && res.code === 200) {
+      const originalContent = res.data;
+      const dataSource = originalContent.map((content, index)=>{
+        return {
+          num: index+1,// 用于列表展示的序号
+          key: content.id,// 用于列表渲染的key
+          workCenterCode: content.workCenterCode, // 工作中心编号
+          workCenterName: content.workCenterName, // 工作中心名称
+          isFlag: content.isFlag // 是否有效
+        }
+      })
+  
+      this.setState({
+        listArr: dataSource,
+      })
+    } else {
+      message.error('获取工作中心列表失败！请稍候重试。')
+    }
+  }
+  // 新增&编辑
+  addAndEditFun = (record) => {
+    // console.log('edit:',record)
+    this.setState({
+      editVisiable:true,
+      editDataObj:record,
+    })
+  }
+
+  // Modal点击确定按钮的回调
+  onModalOkClickedListener = () => {
+    this.setState({
+      editVisiable: false,
+    })
+    //Todo: 重新请求接口更新Data，刷新页面
+    this.getListDataFun()
+  }
+  // Modal点击取消按钮的回调
+  onModalCancelClickedListener = () => {
+    this.setState({
+      editVisiable: false,
+    })
+  }
+
+
+  render() {
+    const {
+      workCenterColumns,
+      listArr,
+      filterConditionObj,
+      editVisiable,
+      editDataObj,
+      chekboxSelectedRowKeys
+    } = this.state
     const rowSelection = {
+      selectedRowKeys: chekboxSelectedRowKeys,
       onChange: (selectedRowKeys, selectedRows) => {
         console.log(`selectedRowKeys: ${selectedRowKeys}`, 'selectedRows: ', selectedRows);
         this.setState({
           chekboxSelectedRowKeys: selectedRowKeys
         })
-      },
-      getCheckboxProps: record => ({
-        disabled: record.name === 'Disabled User', // Column configuration not to be checked
-        name: record.name,
-      }),
+      }
     };
     return (
       <div>
         <ConditionView>
           <SearchView>
-            <InputView placeholder="工作中心名称" value={centerName} onChange={this.centerNameChange} style={{ width: '50%',marginRight: '10px' }} />
-            <Select defaultValue="1" style={{ width: '30%',marginRight: '10px' }} onChange={this.handleChange}>
-              <Option value="1">有效</Option>
-              <Option value="0">无效</Option>
-            </Select>
-            <Button type="primary" onClick={this.searchFun}>查询</Button>
+            <InputView
+              placeholder="工作中心名称"
+              onCalled={(e) => {
+                const { value } = e.target
+                // console.log('uuu:',value)
+                this.setState({
+                  filterConditionObj: {...filterConditionObj, centerName: value}
+                })
+              }}
+            />
+            <SelectView
+              onCalled = {(e) => {
+                // console.log('e:',e)
+                this.setState({
+                  filterConditionObj: {...filterConditionObj, validValue: e}
+                })
+              }}
+            />
+            <SearchBtnView
+              onClickCalled = { () => {
+                // console.log('搜索')
+                this.getListDataFun()
+              }}
+            />
           </SearchView>
           <OptView>
-            <Button type="primary" onClick={this.showModal}>新增</Button>
-            <Popconfirm
-              title="确定设为有效?"
-              cancelText="取消"
-              okText="确定"
-              onConfirm={this.confirmSetValidFun}
-            >
-              <Button type="primary">设为有效</Button>
-            </Popconfirm>    
-            <Popconfirm
-              title="确定设为无效?"
-              cancelText="取消"
-              okText="确定"
-              onConfirm={this.confirmSetInValidFun}
-            >
-              <Button type="primary">设为无效</Button>
-            </Popconfirm>           
-            {/* <Button type="primary" onClick={this.setInValidFun}>设为无效</Button> */}
+            <Button type="primary" onClick={() => this.addAndEditFun({})}>新增</Button> 
+            <Button type="primary" onClick={() => this.toggleSetValidFun('1')}>设为有效</Button>
+            <Button type="primary" onClick={() =>this.toggleSetValidFun('0')}>设为无效</Button>
           </OptView>
         </ConditionView>
         <ContentView>
           <Table
-            dataSource={this.state.listArr}
-            columns={columns}
+            className="data-board-table"
+            dataSource={listArr}
+            columns={workCenterColumns}
             rowSelection={rowSelection}
-            pagination={false} />
+            pagination={{
+              pageSize: 15,
+              showQuickJumper: true,
+              total: listArr.length,
+              showTotal: ((total) => {
+                return `共${total}条`
+              })
+            }}
+          />
         </ContentView>
         <EditModel
           editVisiable={ editVisiable }
-          onModelCancel={ this.onModelCancel}
-          saveData= { this.saveData }
           editDataObj = {editDataObj}
-          updateDataHandle = {this.updateDataHandle}
+          onOkClickedListener = {this.onModalOkClickedListener}
+          onCancelClickedListener={this.onModalCancelClickedListener}
         />
       </div>
     )
   }
+}
+
+const InputView = ({placeholder, onCalled}) => {
+  return (
+    <Input
+      placeholder={placeholder}
+      onChange={onCalled}
+      style={{width: '30%', marginRight: '6px'}}
+    />
+  )
+}
+const SelectView = ({onCalled}) => {
+  return (
+    <Select
+      defaultValue="" onChange={onCalled}
+      style={{width: '15%', marginRight: '6px'}}
+    >
+      <Option value="">全部</Option>
+      <Option value="1">有效</Option>
+      <Option value="0">无效</Option>
+    </Select>
+  )
+}
+const SearchBtnView = ({onClickCalled}) => {
+  return (
+    <Button type="primary" onClick={onClickCalled}>查询</Button>
+  )
 }
 
 export const WorkCenterIndex = _WorkCenterIndex
@@ -248,7 +258,7 @@ const ContentView = styled.div`
   margin-top: 15px;
 `
 const SearchView = styled.div`
-  flex:1;
+flex:2;
 `
 const OptView = styled.div`
   flex: 1;
@@ -256,9 +266,8 @@ const OptView = styled.div`
   justify-content: flex-end;
   .ant-btn{ margin-left: 10px; }
 `
-const InputView = styled(Input)`
+/* const InputView = styled(Input)`
 width: 300px;
 border:1px solid red;
 background:#ff0;
-
-`
+` */

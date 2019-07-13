@@ -40,18 +40,20 @@ class DevicePicModal extends Component {
             this.setState({
                 visibility: nextProps.devicePicModalVisible
             })
-        }
 
-        const {devicePicModalVisible, selectedDeviceObj} = nextProps
-        const file = _.get(selectedDeviceObj, 'devicePic')
-        if (file) {
-            if (!file.url && !file.preview) {
-                file.preview = await getBase64(file.originFileObj);
+            if (nextProps.devicePicModalVisible){
+                const {selectedDeviceObj} = nextProps
+                const file = _.get(selectedDeviceObj, 'devicePic')
+                if (file) {
+                    if (!file.url && !file.preview) {
+                        file.preview = await getBase64(file.originFileObj);
+                    }
+
+                    this.setState({
+                        previewImage: file.url || file.preview,
+                    });
+                }
             }
-
-            this.setState({
-                previewImage: file.url || file.preview,
-            });
         }
     }
 
@@ -67,9 +69,11 @@ class DevicePicModal extends Component {
 
     render() {
         const {visibility, previewImage} = this.state
+        const {selectedDeviceObj} = this.props
+        const deviceName = _.get(selectedDeviceObj, 'deviceName')
         return (
             <Modal
-                title={'设备图片查看'}
+                title={deviceName?deviceName:'查看设备图片'}
                 visible={visibility}
                 footer={null}
                 onCancel={this.handleCancel}

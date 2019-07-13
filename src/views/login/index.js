@@ -3,7 +3,8 @@ import { withRouter } from 'react-router-dom';
 import {Button, Form, Input, message} from "antd";
 import styled, { keyframes } from "styled-components";
 
-import { Encrypt, http, Durian} from '../../utils'
+import { Encrypt, Durian} from '../../utils'
+import { reqLogin } from '../../api'
 
 class _LoginPage extends Component {
   constructor(props) {
@@ -29,17 +30,17 @@ class _LoginPage extends Component {
         let password = values.password;
         // password = Encrypt.encryptBy3DES(password).toString();
 
-        const formData = {
-					loginAccount: userName,
-					loginPwd: password
-					// loginPwd: this.encryptByDES(password,username) // 密码加密，后期放开
-				}
-        // const res = await http.post('/equipmanage/SanyBasicUser/login', formData);
-        const res = await http.post('http://10.19.8.22:9085/SanyBasicUser/login', formData);
+        // syzj syyp 生产计划排程和所有
+        const res = await reqLogin(userName,password);
         if (res && res.code === 200 && res.data) {
-          const { loginAccount, remark } = res.data
+        
+          // res.data.loginAccount = 'zhangsan'
+          const { account, companyCode, token} = res.data
+          // let token = '82bab92b-3939-4523-a643-32955280037f'
           const user = {
-            loginAccount,remark
+            loginAccount: account,
+            companyCode: companyCode,
+            token: token
           }
           Durian.set('user', user);
           this.props.history.push('/admin');
@@ -67,12 +68,12 @@ class _LoginPage extends Component {
         <ContentView>
           <LoginTableView>
             <LoginLogoView>
-              <img style={{ width: '48px', height: '48px', marginBottom: '8px' }} src={require('../../assets/images/logo.png')} alt="" />
-              <div>设备互联管理系统</div>
+              <img style={{ width: '48px', marginBottom: '8px' }} src={require('../../assets/images/logo.png')} alt="" />
+              <div style={{ height: '50px' }}>设备互联管理系统</div>
             </LoginLogoView>
             <Form
                 onSubmit={this.handleLoginSubmit}
-                style={{ width: '100%' }}
+                style={{ width: '100%',height: '200px', overflow: 'hidden' }}
             >
               <Form.Item
                   validateStatus={userNameError ? 'error' : ''}
@@ -86,10 +87,9 @@ class _LoginPage extends Component {
                 })(
                     <Input
                         placeholder="输入您的用户名"
-                        prefix={<span className="iconfont" style={{ color: '#09B6FD' }}>&#xe613;</span>}
+                        prefix={<span className="iconfont" style={{ color: '#09B6FD' }}>&#xe65a;</span>}
                         allowClear
                         className="login_input"
-
                     />
                 )}
               </Form.Item>
@@ -104,15 +104,14 @@ class _LoginPage extends Component {
                 })(
                     <Input.Password
                         placeholder="输入您的密码"
-                        prefix={<span className="iconfont" style={{ color: '#09B6FD' }}>&#xe615;</span>}
-                        style={{ marginTop: '5px' }}
+                        prefix={<span className="iconfont" style={{ color: '#09B6FD' }}>&#xe777;</span>}
                         className="login_input"
                     />
                 )}
               </Form.Item>
               <Form.Item>
                 <LoginButtonsView>
-                  <Button type={"primary"} htmlType="submit" style={{ width: '80%' }}>登陆</Button>
+                  <Button type={"primary"} htmlType="submit" style={{ width: '80%' }}>登录</Button>
                 </LoginButtonsView>
               </Form.Item>
             </Form>
@@ -165,7 +164,7 @@ const LoginTableView = styled.div`
   display: flex;
   flex-direction: column;
   width: 400px;
-  height: 400px;
+  // height: 400px;
   border: rgba(63,91,184,0.2) solid 2px;
   border-radius: 4px;
   align-self: flex-end;
@@ -178,12 +177,12 @@ const LoginLogoView = styled.div`
   display: flex;
   flex-direction: column;
   width: 80%;
-  height: 100px;
+  height: 100px;overflow:hidden;
   // border: red solid 2px;
   justify-content: center;
   align-items: center;
   margin-top: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 20px;
   color: white;
   font-size: xx-large;
   z-index: 100;

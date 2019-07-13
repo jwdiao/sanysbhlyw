@@ -9,27 +9,18 @@ class _CraftTypeIndex extends Component {
   constructor(props) {
     super(props)
     this.state = {
-        dataSet: [],
-        // companyCode: '',
-        // selectedRowKeys: [] // 选择的key数组
+        dataSet: []
     }
   }
 
   componentDidMount() {
-    // const companyCode = Durian.get('user').companyCode
-    // this.setState({
-      // companyCode: companyCode
-    // })
     this.getListDataFun()
   }
   getListDataFun = async () => {
     const companyCode = Durian.get('user').companyCode
-    console.log('companyCode:',companyCode)
     const res = await reqCraftList(companyCode)
     if (res && res.code === 200) {
-      // return;
       let originalContent = res.data;
-      // console.log('originalContent:',res.data)
       const dataSource = originalContent.map((item, index) => {
         return {
           num: index+1,// 用于列表展示的序号
@@ -43,6 +34,8 @@ class _CraftTypeIndex extends Component {
       this.setState({
         dataSet: dataSource,
       })
+    } else if (res && res.code === 1010) {
+      // message.warn('工艺类型列表为空。请首先新增工艺类型。')
     } else {
       message.error('获取工艺类型列表失败！请稍候重试。')
     }
@@ -51,21 +44,19 @@ class _CraftTypeIndex extends Component {
   // 保存
   saveFun = async () => {
     const { dataSet } = this.state;
-    // console.log('dataSet:',dataSet)
-
     const selectedRowKeys = []
     dataSet.forEach((item, index) => {
       if (item.isChecked) {
         selectedRowKeys.push(item)
       }
     })
-    if (selectedRowKeys<=0) {
+    if (selectedRowKeys.length<=0) {
       message.warning('请选择！');
     } else {
-      // console.log('selected id:', selectedRowKeys)
       const res = await reqSaveCraft(selectedRowKeys)
       if (res && res.code === 200) {
         message.success('保存成功！');
+        this.getListDataFun()
       } else {
         message.error('保存失败！请稍候重试。')
       }
@@ -86,11 +77,9 @@ class _CraftTypeIndex extends Component {
         isChecked: newIsChecked
       }
     })
-    // console.log('hhh:',newArr)
     this.setState({
       dataSet: newArr,
     });
-    // console.log('dataSet:',this.state.dataSet)
   }
 
   render() {
@@ -120,6 +109,7 @@ class _CraftTypeIndex extends Component {
         render: (record) => <Checkbox checked={record.isChecked} onChange={e => this.onChange(record, e)}></Checkbox>,
       },
     ];
+    const { dataSet } = this.state
     return (
       <div>
         <ConditionView>
@@ -127,9 +117,17 @@ class _CraftTypeIndex extends Component {
         </ConditionView>
         <ContentView>
           <Table
-            dataSource={this.state.dataSet}
+            className="data-board-table"
+            dataSource={dataSet}
             columns={columns}
-            pagination={false} />
+            pagination={{
+              pageSize: 15,
+              showQuickJumper: true,
+              total: dataSet.length,
+              showTotal: ((total) => {
+                return `共${total}条`
+              })
+            }} />
         </ContentView>
       </div>
     )

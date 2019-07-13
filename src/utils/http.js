@@ -1,27 +1,31 @@
 import * as axios from 'axios'
 import { message } from 'antd';
+import { Durian, BuildProjectName, BASE_URL} from './'
 
-let alert = message.error;
-
-const BASE_URL = 'http://10.19.8.22:9099' // 线上地址
-// const BASE_URL = 'http://10.88.195.81:9010' // 于群
 axios.defaults.baseURL = BASE_URL
-if (process.env.NODE_ENV && process.env.NODE_ENV === 'production') {
-    // axios.defaults.baseURL = 'http://znzz.sany.com.cn:9999'
-    axios.defaults.baseURL = 'http://222.240.233.67:9999'
-    if (process.env.NETWORK_AREA === 'internal') {
-        axios.defaults.baseURL = 'http://10.19.8.21:9999'
-    }
-}
+// if (process.env.NODE_ENV && process.env.NODE_ENV === 'production') {
+//     // axios.defaults.baseURL = 'http://znzz.sany.com.cn:9999'
+//     axios.defaults.baseURL = 'http://222.240.233.67:9999'
+//     if (process.env.NETWORK_AREA === 'internal') {
+//         axios.defaults.baseURL = 'http://10.19.8.21:9999'
+//     }
+// }
 
 axios.defaults.headers.post['Content-Type'] = 'application/json'
 
 axios.interceptors.request.use(config => {
-
-    const token = sessionStorage.getItem('token');
+    const userInfo = Durian.get('user');
+    // console.log('userInfo:',userInfo)
     // 每次发送请求之前检测sessionStorage是否存有token,如果有则一并发给服务端
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`
+    if (userInfo && userInfo.token) {
+        config.headers.token = `${userInfo.token}`
+    }
+    // 时间戳(解决get请求IE下缓存问题)
+    if (config.method === 'get') {
+        config.params = {
+            t: Date.parse(new Date()),
+            ...config.params
+        }
     }
     return config
 }, error => {
@@ -31,9 +35,20 @@ axios.interceptors.request.use(config => {
 })
 
 axios.interceptors.response.use((response) => {
+    // console.log('8888888888:',window.location.protocol,window.location.host)
     if (response.status >= 400 && response.status < 500) {
         window.location.href = decodeURI(`${window.location.protocol}//${window.location.host}/404.html`)
-    }else {
+    } else {
+        // console.log('yyyyyy:',`${window.location.protocol}//${window.location.host}/${BuildProjectName}`)
+        // return;
+        if (response.data.code === 1012) {
+            message.error('登录信息已过期！请重新登录。')
+            Durian.remove('user');
+            Durian.remove('selectedTabKey');
+            // window.location.href = '/login';
+            window.location.href = `${window.location.protocol}//${window.location.host}/${BuildProjectName}`
+            return Promise.reject(response.data.msg)
+        }
         return response
     }
 }, (error)=>{
@@ -65,7 +80,7 @@ _http.get = function (url, params = {}) {
         if (code === '201') {
             // 后面增加具体报错信息提示
             console.log('axios Get method error code: ' +url+', error code: '+code);
-            alert(message, 1);
+            message.error(message, 1);
             return null;
         }
         return response.data
@@ -83,14 +98,14 @@ _http.post = function (url, params = {}) {
             // 后面增加页面结束加载转框
             // console.log('axios Post method ended: ' +url)
             // 获取接口自定义Code
-            let code = response.data.ret
+            let code = response.data.code
             // 获取接口返回message
             let message = response.data.msg
             // 对于接口定义的特殊范围的 code，统一对返回的 message 作弹框处理
             if (code === '201') {
             // 后面增加具体报错信息提示
                 console.log('axios Get method error code: ' +url+', error code: '+code);
-                alert(message, 1);
+                message.error(message, 1);
                 return null;
             }
             return response.data
@@ -99,6 +114,21 @@ _http.post = function (url, params = {}) {
             console.log('axios Post method exception: ' +url+', error: '+error)
         })
 }
+
+_http.postFormData = function(url, formData = []) {
+    let config = {
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        }
+    }
+    return axios.post(url, formData, config).then(res => {
+        console.log('postFormData response: ', res)
+        return res.data
+    }).catch(error => {
+        console.log('postFormData error:', error)
+    })
+}
+
 _http.download = function (url, params = {}) {
     // 后面增加页面提示开始加载转框
     // console.log('axios Post method started: ' +url)
@@ -133,23 +163,6 @@ _http.all = function (requests = []) {
         // 后面增加页面报错提示
         console.log('axios asyncAll method exception error: '+error)
     })
-}
-
-// _http.baseUrl = 'http://10.19.8.21/'
-
-_http.baseUrl = (process.env.NODE_ENV && process.env.NODE_ENV === 'production')
-    ? 'http://222.240.233.67/'
-    : 'http://10.19.8.21/'
-if (process.env.NETWORK_AREA === 'internal') {
-    _http.baseUrl = 'http://10.19.8.21/'
-}
-
-// _http.baseUploadUrl = 'http://10.19.8.21:9999'
-_http.baseUploadUrl = (process.env.NODE_ENV && process.env.NODE_ENV === 'production')
-    ? 'http://222.240.233.67:9999'
-    : 'http://10.19.8.21:9999'
-if (process.env.NETWORK_AREA === 'internal') {
-    _http.baseUploadUrl = 'http://10.19.8.21:9999'
 }
 
 _http.uploadFile = function (url, parmas, onUploadProgress) {

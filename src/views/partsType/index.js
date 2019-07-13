@@ -1,8 +1,9 @@
 import React, { Component } from 'react'
 import styled from "styled-components";
-import { Input, Button,Select, Table, Popconfirm, message } from 'antd';
+import { Input, Button,Select, Table, message } from 'antd';
 
-import { reqPartTypeList, reqPartSave, reqSetValid } from '../../api'
+import { reqPartTypeList, reqSetPartValid } from '../../api'
+import { partTypeColumns } from '../../utils'
 import EditModel from './edit'
 const { Option } = Select;
 
@@ -13,112 +14,70 @@ class _PartsTypeIndex extends Component {
   constructor(props) {
     super(props)
     this.state ={
-      partTypeName: '', // 加工中心名称
-      validValue: '', // 是否有效
+      partTypeColumn: [], // 表格列
       listArr: [], // 列表
-      pageNum: 1, // 页码
-      pageSize: 10, // 每页多少条
-      total: 0, // 共多少条
+
+      filterConditionObj: { // 查询条件
+        partTypeName: '', // 加工中心名称
+        validValue: '', // 是否有效
+      },
+      pagination: {
+        pageNum: 1, // 页码
+        pageSize: 15, // 每页多少条
+        total: 0, // 共多少条
+      },  
       editVisiable: false, // 新增弹窗是否显示
       editDataObj:{}, // 当前编辑的对象
       chekboxSelectedRowKeys: [] // 选中的checkbox
     }
   }
-  // 查询
-  searchFun = () => {
-    const { partTypeName, validValue,pageSize } = this.state;
-    console.log('工作中心名称为：',partTypeName,' 有效无效值：',validValue)
-    this.setState({
-      partTypeName,validValue,
-      pageNum: 1,
-      pageSize
-    }, () => {
-      // 调用列表
-      this.getListDataFun()
-    })
+  // 构建标题结构
+  constructTableFields = () => {
+    let baseColumnArray = partTypeColumns
+    return baseColumnArray.concat(this.getOperationFields())
   }
-  // 工作中心名称回调
-  partTypeNameChange = (e) => {
-    this.setState({
-      partTypeName: e.target.value
-    })
-  }
-  // 是否有效下拉
-  handleChange = (value) => {
-    // console.log(`selected ${value}`);
-    this.setState({
-      validValue: value
-    })
-  }
-  // 编辑
-  handleEdit = (record, e) => {
-    // console.log('edit:',record)
-    this.setState({
-      editVisiable:true,
-      editDataObj:record,
-    })
+  // 操作列
+  getOperationFields = () => {
+    return [
+      {
+        title: '编辑',
+        key: 'action',
+        align: 'center',
+        render: (text, record) => (
+          <Button type="primary" size={'small'} ghost onClick={(e) => this.addEditPartType(record, e)}>编辑</Button>
+        ),
+      }
+    ]
   }
 
-  // 新增弹窗
-  showModal = () => {
+  componentWillMount() {
+    let partTypeColumn = this.constructTableFields();
     this.setState({
-      editVisiable: true,
-      editDataObj:{}
-    });
+      partTypeColumn: partTypeColumn
+    })
+
+    // 获取公司编码
+    // this.companyCode = Durian.get('user').companyCode 
   }
-  // 弹窗取消
-  onModelCancel = e => {
-    console.log(e);
-    this.setState({
-      editVisiable: false,
-    });
-  } 
-  // 新增弹窗储存数据
-  saveData = async (updateData) => {
-    // console.log('ok:',updateData)
-    // 调用新增接口
-    const res = await reqPartSave(updateData)
-    if (res && res.code === 200) {
-      message.success(res.data);
-    } else {
-      message.warning(res.msg);
-    }
-    // 调用列表接口
-    this.getListDataFun()
-  }
-  // 设为有效
-  confirmSetValidFun = async () => {
+
+  // 设为有效和无效
+  toggleSetValidFun = async(valid) => {
     const { chekboxSelectedRowKeys } = this.state;
     // console.log('chekboxSelectedRowKeys:',chekboxSelectedRowKeys)
     if(chekboxSelectedRowKeys.length<=0) {
-      message.warning('至少选择一个！');
+      message.warning('请勾选要操作的行！');
       return;
     } else {
-      const res = await reqSetValid(chekboxSelectedRowKeys, 1)
+      const res = await reqSetPartValid(chekboxSelectedRowKeys, valid)
       if(res && res.code === 200) {
-        message.success('保存成功');
+        message.success('设置成功');
+        this.setState({
+          chekboxSelectedRowKeys: []
+        })
         // 调用列表接口
         this.getListDataFun()
       } else {
-        message.warning('保存失败！');
-      }
-    }
-  }
-  // 设为无效
-  confirmSetInValidFun = async() => {
-    const { chekboxSelectedRowKeys } = this.state;
-    // console.log('chekboxSelectedRowKeys:',chekboxSelectedRowKeys)
-    if(chekboxSelectedRowKeys.length<=0) {
-      message.warning('至少选择一个！');
-      return;
-    } else {
-      const res = await reqSetValid(chekboxSelectedRowKeys, 0)
-      if(res && res.code === 200) {
-        message.success('保存成功');
-        // 调用列表接口
-        this.getListDataFun()
-      } else {
-        message.warning('保存失败！');
+        message.warning('设置失败！');
       }
     }
   }
@@ -129,7 +88,9 @@ class _PartsTypeIndex extends Component {
   // 获取列表接口
   async getListDataFun() {
     // console.log('oo:',this.state.pageNum)
-    const { pageNum, pageSize, partTypeName, validValue} = this.state;
+    const { pagination, filterConditionObj} = this.state;
+    const { pageNum, pageSize } = pagination
+    const { partTypeName, validValue } = filterConditionObj
     const params = {
       "pageNum": pageNum,
       "pageSize": pageSize,
@@ -141,7 +102,7 @@ class _PartsTypeIndex extends Component {
     const res = await reqPartTypeList(params)
     if (res && res.code === 200) {
       const originalContent = res.data.list;
-      const { pageNum, pageSize, total } = res.data;
+      const { pageNum, pageSize } = this.state.pagination;
 
       const dataSource = originalContent.map((content, index)=>{
         return {
@@ -153,10 +114,11 @@ class _PartsTypeIndex extends Component {
         }
       })
   
-      this.setState({
-        listArr: dataSource,
-        // pageNum,pageSize,
-        total: total
+      this.setState((prevState) => {
+        return {
+          listArr: dataSource,
+          pagination: Object.assign({}, prevState.pagination, { total: res.data.total }),
+        }
       })
     } else {
       message.error('获取加工零件列表失败！请稍候重试。')
@@ -165,120 +127,151 @@ class _PartsTypeIndex extends Component {
   // 分页导航的监听
   onPageChange = (pageNum, pageSize) => {
     // console.log('onPageChange called!', pageNum,pageSize)
-    this.setState({
-      pageNum: pageNum
+    this.setState((prevState) => {
+      return {
+        pagination: Object.assign({}, prevState.pagination, { pageNum: pageNum})
+      }
     },() => {
       // 调用列表接口
       this.getListDataFun()      
     })
   }
+  // 新增&编辑弹窗
+  addEditPartType = (record) => {
+    console.log('edit:',record)
+    this.setState({
+      editVisiable: true,
+      editDataObj: record
+    });
+  }
+  // Modal点击确定按钮的回调
+  onModalOkClickedListener = () => {
+    this.setState({
+      editVisiable: false,
+    })
+    //Todo: 重新请求接口更新Data，刷新页面
+    this.getListDataFun()
+  }
+  // Modal点击取消按钮的回调
+  onModalCancelClickedListener = () => {
+    this.setState({
+      editVisiable: false,
+    })
+  }
   render() {
-    const columns = [
-      {
-        title: '序号',
-        dataIndex: 'num',
-        key: 'num',
-        align: 'center'
-      },
-      {
-        title: '零件类型编号',
-        dataIndex: 'partTypeCode',
-        key: 'partTypeCode',
-        align: 'center'
-      },
-      {
-        title: '零件类型名称',
-        dataIndex: 'partTypeName',
-        key: 'partTypeName',
-        align: 'center'
-      },
-      {
-        title: '是否有效',
-        dataIndex: 'isFlag',
-        key: 'isFlag',
-        align: 'center'
-      },
-      {
-        title: '编辑',
-        key: 'action',
-        align: 'center',
-        render: (text, record) => (
-          <Button type="primary" ghost onClick={(e) => this.handleEdit(record, e)}>编辑</Button>
-        ),
-      },
-    ];
-    const { partTypeName, editVisiable, editDataObj } = this.state
+    const {
+      partTypeColumn, listArr,
+      filterConditionObj,
+      editVisiable, editDataObj,
+      pagination,
+      chekboxSelectedRowKeys
+    } = this.state
+    const { pageNum, pageSize, total } = pagination;
+    // const { partTypeName } = filterConditionObj
+    console.log(pageNum, pageSize, total)
     const rowSelection = {
+      selectedRowKeys: chekboxSelectedRowKeys,
       onChange: (selectedRowKeys, selectedRows) => {
         // console.log(`selectedRowKeys: ${selectedRowKeys}`, 'selectedRows: ', selectedRows);
         this.setState({
           chekboxSelectedRowKeys: selectedRowKeys
         })
-      },
-      getCheckboxProps: record => ({
-        disabled: record.name === 'Disabled User', // Column configuration not to be checked
-        name: record.name,
-      }),
+      }
     };
     return (
       <div>
         <ConditionView>
           <SearchView>
-            <InputView placeholder="零件类型" value={partTypeName} onChange={this.partTypeNameChange} style={{ width: '50%',marginRight: '10px' }} />
-            <Select defaultValue="" style={{ width: '30%',marginRight: '10px' }} onChange={this.handleChange}>
-              <Option value="">全部</Option>
-              <Option value="1">有效</Option>
-              <Option value="0">无效</Option>
-            </Select>
-            <Button type="primary" onClick={this.searchFun}>查询</Button>
+          <InputView
+              placeholder="零件类型名称"
+              onCalled={(e) => {
+                const { value } = e.target
+                // console.log('uuu:',value)
+                this.setState({
+                  filterConditionObj: {...filterConditionObj, partTypeName: value}
+                })
+              }}
+            />
+            <SelectView
+              onCalled = {(e) => {
+                // console.log('e:',e)
+                this.setState({
+                  filterConditionObj: {...filterConditionObj, validValue: e}
+                })
+              }}
+            />
+            <SearchBtnView
+              onClickCalled = { () => {
+                // console.log('搜索')
+                this.setState({
+                  pagination: {...pagination, pageNum: 1}
+                },() => {
+                  this.getListDataFun()
+                })
+              }}
+            />
           </SearchView>
           <OptView>
-            <Button type="primary" onClick={this.showModal}>新增</Button>
-{/*             <Popconfirm
-              title="确定设为有效?"
-              cancelText="取消"
-              okText="确定"
-              onConfirm={this.confirmSetValidFun}
-            >
-              <Button type="primary">设为有效</Button>
-            </Popconfirm>    
-            <Popconfirm
-              title="确定设为无效?"
-              cancelText="取消"
-              okText="确定"
-              onConfirm={this.confirmSetInValidFun}
-            >
-              <Button type="primary">设为无效</Button>
-            </Popconfirm>   */} 
-            <Button type="primary" onClick={this.confirmSetValidFun}>设为有效</Button>        
-            <Button type="primary" onClick={this.confirmSetInValidFun}>设为无效</Button>
+            <Button type="primary" onClick={() => this.addEditPartType({})}>新增</Button>
+            <Button type="primary" onClick={() => this.toggleSetValidFun('1')}>设为有效</Button>        
+            <Button type="primary" onClick={() => this.toggleSetValidFun('0')}>设为无效</Button>
           </OptView>
         </ConditionView>
         <ContentView>
           <Table
-            dataSource={this.state.listArr}
-            columns={columns}
+            className={'data-board-table'}
+            dataSource={listArr}
+            columns={partTypeColumn}
             rowSelection={rowSelection}
             pagination={{
-              total: this.state.total,
-              pageSize: this.state.pageSize,
-              current: this.state.pageNum,
+              total: total,
+              showTotal: ((total) => {
+                return `共${total}条`
+              }),
+              pageSize: pageSize,
+              current: pageNum,
               onChange: this.onPageChange,
             }}
           />
         </ContentView>
         <EditModel
           editVisiable={ editVisiable }
-          onModelCancel={ this.onModelCancel}
-          saveData= { this.saveData }
           editDataObj = {editDataObj}
-          updateDataHandle = {this.updateDataHandle}
+          onOkClickedListener = {this.onModalOkClickedListener}
+          onCancelClickedListener={this.onModalCancelClickedListener}
         />
       </div>
     )
   }
 }
 
+
+const InputView = ({placeholder, onCalled}) => {
+  return (
+    <Input
+      placeholder={placeholder}
+      onChange={onCalled}
+      style={{width: '30%', marginRight: '6px'}}
+    />
+  )
+}
+const SelectView = ({onCalled}) => {
+  return (
+    <Select
+      defaultValue="" onChange={onCalled}
+      style={{width: '15%', marginRight: '6px'}}
+    >
+      <Option value="">全部</Option>
+      <Option value="1">有效</Option>
+      <Option value="0">无效</Option>
+    </Select>
+  )
+}
+const SearchBtnView = ({onClickCalled}) => {
+  return (
+    <Button type="primary" onClick={onClickCalled}>查询</Button>
+  )
+}
 export const PartsTypeIndex = _PartsTypeIndex
 
 const ConditionView = styled.div`
@@ -291,17 +284,11 @@ const ContentView = styled.div`
   margin-top: 15px;
 `
 const SearchView = styled.div`
-  flex:1;
+  flex:2;
 `
 const OptView = styled.div`
   flex: 1;
   display: flex;
   justify-content: flex-end;
   .ant-btn{ margin-left: 10px; }
-`
-const InputView = styled(Input)`
-width: 300px;
-border:1px solid red;
-background:#ff0;
-
 `

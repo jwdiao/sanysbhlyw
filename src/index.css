@@ -55,3 +55,8 @@
   margin-top:0 !important;margin-bottom:0 !important;
   height:46px !important;line-height: 46px !important;
 }
+
+
+.login_input .ant-input{
+  height: 40px !important;
+}

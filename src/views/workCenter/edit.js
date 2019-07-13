@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
-import { Input, Select, Modal,Form, } from 'antd';
+import { Input, Select, Modal,Form, message } from 'antd';
+import { reqSaveCenter } from '../../api'
 
 const { Option } = Select;
 const formItemLayout = {
@@ -16,22 +17,27 @@ class EditModel extends Component {
   // 确定
   handleOk = e => {
     // console.log(e);
-    const { onModelCancel, saveData, editDataObj, updateDataHandle } = this.props
+    const { editDataObj } = this.props
     const { resetFields } = this.props.form
-    this.props.form.validateFieldsAndScroll((err, values) => {
+    this.props.form.validateFieldsAndScroll(async (err, values) => {
       if (!err) {
         //判断是更新 还是添加
         if(editDataObj.key) { // 编辑
-          values.key = editDataObj.key;
-          updateDataHandle(values)
-        } else {
-          // 调用新增接口
-          values.key = 'add'+Math.random()*10 // key值
-          saveData(values) // 保存的数据    
+          values.id = editDataObj.key;
         }
-   
-        resetFields() // 重置表单
-        onModelCancel() // 关闭弹窗
+        const res = await reqSaveCenter(values)
+        if (res && res.code === 200) {
+          if (this.props.onOkClickedListener) {
+            resetFields() // 重置表单
+            this.props.onOkClickedListener()
+            message.success(res.data);
+          }
+        } else if(res && res.code === 1011) {
+          message.warning(res.msg);
+          // message.warning(res.msg+'请重新输入工作中心编号！');
+        } else {
+          message.warning(res.msg);
+        }
       }
     });
   };
@@ -42,13 +48,16 @@ class EditModel extends Component {
     this.setState({
       visible: false,
     });
+    if (this.props.onCancelClickedListener) {
+      this.props.onCancelClickedListener()
+    }
   };
   handleChangeValid = value => {
     console.log(`selected ${value}`);
   }
 
   render() {
-    const { editVisiable, onModelCancel, editDataObj } = this.props
+    const { editVisiable, editDataObj } = this.props
     const { getFieldDecorator } = this.props.form;
 
     return (
@@ -59,14 +68,15 @@ class EditModel extends Component {
           cancelText="取消"
           visible={editVisiable}
           onOk={this.handleOk}
-          onCancel={onModelCancel}
+          onCancel={this.handleCancel}
+          destroyOnClose={true}
         >
           <Form layout="horizontal">
             <Form.Item label="工作中心编号" {...formItemLayout}>
               {getFieldDecorator('workCenterCode', {
                 initialValue: editDataObj.workCenterCode || '',
                 rules: [{ required: true, message: '请输入编号!'}],
-              })(<Input />)}
+              })(<Input disabled={!!editDataObj.key}/>)}
             </Form.Item>
             <Form.Item label="工作中心名称" {...formItemLayout}>
               {getFieldDecorator('workCenterName', {
@@ -75,8 +85,8 @@ class EditModel extends Component {
               })(<Input />)}
             </Form.Item>
             <Form.Item label="是否有效" {...formItemLayout}>
-              {getFieldDecorator('isValid', {
-                initialValue: editDataObj.isValid,
+              {getFieldDecorator('isFlag', {
+                initialValue: editDataObj.isFlag || '1',
                 rules: [{ required: true, message: '请选择!' }],
               })(
                 <Select

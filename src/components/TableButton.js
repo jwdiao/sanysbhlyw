@@ -70,7 +70,7 @@ export const TableButton = ({disabled = false, customizedText, type,onClick}) =>
             disabled={disabled}
             onClick={onClick}
             type={"default"}
-            size={"default"}
+            size={"small"}
             style={{
                 marginLeft: '2%',
                 marginRight:'2%',

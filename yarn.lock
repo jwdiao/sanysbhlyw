@@ -4412,6 +4412,11 @@ fragment-cache@^0.2.1:
   dependencies:
     map-cache "^0.2.2"
 
+fresh-id@^1.1.0:
+  version "1.1.0"
+  resolved "https://registry.npm.taobao.org/fresh-id/download/fresh-id-1.1.0.tgz#663059db27ef564aade6b77250ce2caada25cdcc"
+  integrity sha1-ZjBZ2yfvVkqt5rdyUM4sqtolzcw=
+
 fresh@0.5.2:
   version "0.5.2"
   resolved "https://registry.npm.taobao.org/fresh/download/fresh-0.5.2.tgz#3d8cadd90d976569fa835ab1f8e4b23a105605a7"

@@ -1,5 +1,6 @@
 @primaryColor: #3766C7;
 @secondaryColor: #4294E6;
+@thirdColor: rgba(72, 178, 247, 0.18);
 :global {
   .ant-modal-header {
     background-color: #48b2f7;
@@ -107,14 +108,14 @@ div.am-list-body::after{
 
 .data-board-table{
   .ant-table {
-    height: calc(100vh - 260px);
-    min-height: calc(100vh - 260px);
-    margin: 0 10px;
+    height: calc(100vh - 220px);
+    min-height: calc(100vh - 220px);
+    // margin: 0 10px;
     border-collapse: separate;
   }
 
   .ant-table-pagination.ant-pagination {
-    margin: 16px 10px;
+    margin: 0px 10px;
   }
   //.ant-table-header {
   //  background: transparent;
@@ -139,7 +140,7 @@ div.am-list-body::after{
   }
   .ant-table-tbody > tr > td {
     padding: 0 8px;
-    height: calc((100vh - 360px)/10);
+    height: calc((100vh - 290px)/15);
     text-align: center;
     color: #555;
     //background: transparent;
@@ -153,7 +154,7 @@ div.am-list-body::after{
   .ant-table {
     height: calc((100vh - 330px)/10*5);
     min-height: calc((100vh - 330px)/10*5);
-    margin: 0 10px;
+    // margin: 0 10px;
     border-collapse: separate;
     // border: red solid 1px;
   }
@@ -163,7 +164,7 @@ div.am-list-body::after{
     // border: red solid 1px;
   }
   .ant-table-title {
-    padding: 10px 0;
+    padding: 0 0 10px 0;
   }
   //.ant-table-fixed-header > .ant-table-content > .ant-table-scroll > .ant-table-body {
   //  background: transparent;
@@ -185,7 +186,7 @@ div.am-list-body::after{
   }
   .ant-table-tbody > tr > td {
     padding: 0 8px;
-    height: calc((100vh - 390px)/10*3.8/4);
+    height: calc((100vh - 390px)/10*3.8/6);
     text-align: center;
     color: #555;
     //background: transparent;
@@ -199,7 +200,7 @@ div.am-list-body::after{
   .ant-table {
     height: calc((100vh - 330px)/10*5);
     max-height: calc((100vh - 330px)/10*5);
-    margin: 0 10px;
+    // margin: 0 10px;
     border-collapse: separate;
     // border: yellow solid 1px;
   }
@@ -383,6 +384,16 @@ div.am-list-body::after{
   }
 }
 
+.table-row-clicked{
+  background: @thirdColor;
+}
+
+.upload-style {
+  .ant-upload-list-picture .ant-upload-list-item-error, .ant-upload-list-picture-card .ant-upload-list-item-error {
+    border-color: #ccc;
+  }
+}
+
 @font-face {
   font-family: 'iconfont';
   src: url('./assets/font/iconfont.eot');
@@ -431,15 +442,15 @@ div.am-list-body::after{
   }
 }
 
-.mob-login-input .ant-input{
-  border: none;
-  border-bottom: 1px solid #D3DFEF;
-  background: none;
-  padding-left: 50px !important;
-  height: 50px;
-  border-radius: 0;
-  font-family: 'Microsoft Yahei Light';
-}
+// .mob-login-input .ant-input{
+//   border: none;
+//   border-bottom: 1px solid #D3DFEF;
+//   background: none;
+//   padding-left: 50px !important;
+//   height: 50px;
+//   border-radius: 0;
+//   font-family: 'Microsoft Yahei Light';
+// }
 
 .searchbar-input.am-list-item.am-list-item-middle{
   border: none;
@@ -479,14 +490,14 @@ div.am-list-body::after{
   }
 }
 
-.ant-input-affix-wrapper .ant-input:focus {
-  border: none;
-  border-bottom: 1px solid #D3DFEF !important;
-  box-shadow: none;
-}
-.mob-login-input .ant-input-prefix{
-  width: 50px;padding-left:5px;
-}
+// .ant-input-affix-wrapper .ant-input:focus {
+//   border: none;
+//   border-bottom: 1px solid #D3DFEF !important;
+//   box-shadow: none;
+// }
+// .mob-login-input .ant-input-prefix{
+//   width: 50px;padding-left:5px;
+// }
 
 .gt-picker-item {
   &.am-list-item .am-list-line .am-list-extra{
@@ -586,3 +597,22 @@ input:-webkit-autofill {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+
+/* 左侧菜单样式 */
+.sider-box .ant-menu-dark .ant-menu-inline.ant-menu-sub{
+  background:#192433;
+}
+.sider-box .ant-menu-inline .ant-menu-submenu-title{ 
+  font-size: 16px;color:#fff; border-bottom: 1px solid #3c4d67;height:50px !important;line-height: 50px !important;
+}
+.sider-box .ant-menu-dark .ant-menu-item {
+  color: rgba(255, 255, 255, 1);
+}
+.sider-box .ant-menu-inline .ant-menu-item,
+.sider-box .ant-menu-inline .ant-menu-submenu-title {
+  margin-top:0 !important;margin-bottom:0 !important;
+  height:46px !important;line-height: 46px !important;
+}
+
+.ant-layout-sider-collapsed .menu-icon{ padding-right: 40px !important; }
